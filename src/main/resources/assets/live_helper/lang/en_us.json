@@ -1,0 +1,13 @@
+{
+  "itemGroup.live_helper": "Example Mod Tab",
+  "block.live_helper.example_block": "Example Block",
+  "item.live_helper.example_item": "Example Item",
+
+  "live_helper.configuration.title": "LiveHelper Configs",
+  "live_helper.configuration.section.live_helper.common.toml": "LiveHelper Configs",
+  "live_helper.configuration.section.live_helper.common.toml.title": "LiveHelper Configs",
+  "live_helper.configuration.items": "Item List",
+  "live_helper.configuration.logDirtBlock": "Log Dirt Block",
+  "live_helper.configuration.magicNumberIntroduction": "Magic Number Text",
+  "live_helper.configuration.magicNumber": "Magic Number"
+}

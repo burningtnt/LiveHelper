@@ -1,0 +1,18 @@
+{
+  "required": true,
+  "package": "net.burningtnt.livehelper.mixin",
+  "compatibilityLevel": "JAVA_25",
+  "mixins": [
+  ],
+  "client": [
+    "GameRendererMixin",
+    "GlCommandEncoderMixin",
+    "MinecraftMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  },
+  "overwrites": {
+    "requireAnnotations": true
+  }
+}
