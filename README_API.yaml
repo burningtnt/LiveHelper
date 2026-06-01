@@ -1,0 +1,561 @@
+  openapi: 3.0.3
+  
+  servers:
+    - url: http:/<LiveHelper Local Server>/api/v1
+  
+  security:
+    - Cookie: [ ]
+  
+  info:
+    title: Live Helper API
+    description: |
+      支持 Minecraft 内多机位直播推流。
+  
+      - 将渲染结果通过 Spout 库推流至外部程序 (如 OBS)；
+      - 基于 WebAssembly 的可编程控制。
+    version: 'v1'
+  
+  tags:
+    - name: 程序
+      description: |
+        配置 AssemblyScript 脚本和列输入 (Input) 形参, 供技法 (Technique) 和调度器 (Manager) 使用
+    - name: 分镜头
+      description: 配置一系列输入 (Input) 实参和一个技法程序, 向技法 (Technique) 传入输入 (Input), 获得摄像机位置与视角。
+    - name: 调度器
+      description: 配置一系列输入 (Input) 实参和一个调度程序, 向按照当前时间, 激活一个或多个分镜头 (Clip), 输出多个画面或将多个渲染结果合并输出为一个画面。
+  
+  paths:
+    /v1/program:
+      get:
+        summary: 罗列全部程序的信息
+        tags:
+          - 程序
+        responses:
+          '200':
+            description: 成功
+            content:
+              application/json:
+                schema:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/Program'
+      post:
+        summary: 创建一个新的程序
+        tags:
+          - 程序
+        responses:
+          '200':
+            description: 成功创建
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/Program'
+    /v1/program/{id}:
+      get:
+        summary: 获取当前程序的信息
+        tags:
+          - 程序
+        parameters:
+          - name: id
+            description: 程序 ID
+            in: path
+            required: true
+            schema:
+              type: integer
+        responses:
+          '200':
+            description: 成功
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/Program'
+          '404':
+            description: 找不到对应 ID 标识的程序
+          '401':
+            description: 请求体和 URL 中的程序 ID 不匹配
+      patch:
+        summary: 更新当前程序的信息
+        tags:
+          - 程序
+        parameters:
+          - name: id
+            description: 程序 ID
+            in: path
+            required: true
+            schema:
+              type: integer
+        requestBody:
+          required: true
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Program'
+        responses:
+          '204':
+            description: 更新成功
+          '404':
+            description: 找不到对应 ID 标识的程序
+          '401':
+            description: 请求体和 URL 中的程序 ID 不匹配
+      delete:
+        summary: 删除当前程序
+        tags:
+          - 程序
+        parameters:
+          - name: id
+            description: 程序 ID
+            in: path
+            required: true
+            schema:
+              type: integer
+        responses:
+          '204':
+            description: 删除成功
+          '409':
+            description: 当前程序被分镜头或调度器使用，不能删除
+    /v1/program/{id}/code:
+      get:
+        summary: 获取当前程序的 AssemblyScript 脚本
+        tags:
+          - 程序
+        parameters:
+          - name: id
+            description: 程序 ID
+            in: path
+            required: true
+            schema:
+              type: integer
+        responses:
+          '200':
+            description: Success
+            content:
+              text/plain:
+                schema:
+                  type: string
+          '404':
+            description: 找不到对应 ID 标识的程序
+      patch:
+        summary: 设置当前程序的 AssemblyScript 脚本
+        tags:
+          - 程序
+        parameters:
+          - name: id
+            description: 程序 ID
+            in: path
+            required: true
+            schema:
+              type: integer
+        requestBody:
+          required: true
+          content:
+            text/plain:
+              schema:
+                type: string
+        responses:
+          '200':
+            description: 更新成功
+          '404':
+            description: 找不到对应 ID 标识的程序
+  
+    /v1/clip:
+      get:
+        summary: 罗列全部分镜头的信息
+        tags:
+          - 分镜头
+        responses:
+          '200':
+            description: 成功
+            content:
+              application/json:
+                schema:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/Clip'
+      post:
+        summary: 创建一个新的分镜头
+        tags:
+          - 分镜头
+        responses:
+          '200':
+            description: 成功
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/Clip'
+          '401':
+            description: 请求体中技法程序不存在
+    /v1/clip/{id}:
+      get:
+        summary: 获取当前分镜头的信息
+        tags:
+          - 分镜头
+        parameters:
+          - name: id
+            description: 分镜头 ID
+            in: path
+            required: true
+            schema:
+              type: integer
+        responses:
+          '200':
+            description: 成功
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/Clip'
+          '404':
+            description: 找不到对应 ID 标识的分镜头
+          '401':
+            description: 请求体和 URL 中的分镜头 ID 不匹配
+      patch:
+        summary: 更新当前分镜头的信息
+        tags:
+          - 分镜头
+        parameters:
+          - name: id
+            description: 分镜头 ID
+            in: path
+            required: true
+            schema:
+              type: integer
+        requestBody:
+          required: true
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Clip'
+        responses:
+          '204':
+            description: 更新成功
+          '404':
+            description: 找不到对应 ID 标识的分镜头
+          '401':
+            description: 请求体和 URL 中的分镜头 ID 不匹配，或请求体中技法程序不存在
+      delete:
+        summary: 删除当前分镜头
+        tags:
+          - 分镜头
+        parameters:
+          - name: id
+            description: 分镜头 ID
+            in: path
+            required: true
+            schema:
+              type: integer
+        responses:
+          '204':
+            description: 删除成功
+          '409':
+            description: 当前分镜头被某个调度器使用，无法删除
+  
+    /v1/manager:
+      get:
+        summary: 罗列全部调度器的信息
+        tags:
+          - 调度器
+        responses:
+          '200':
+            description: 成功
+            content:
+              application/json:
+                schema:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/Manager'
+      post:
+        summary: 创建一个新的调度器
+        tags:
+          - 调度器
+        responses:
+          '200':
+            description: 成功
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/Manager'
+          '401':
+            description: 请求体中技法程序不存在
+    /v1/manager/{id}:
+      get:
+        summary: 获取当前调度器的信息
+        tags:
+          - 调度器
+        parameters:
+          - name: id
+            description: 调度器 ID
+            in: path
+            required: true
+            schema:
+              type: integer
+        responses:
+          '200':
+            description: 成功
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/Manager'
+          '404':
+            description: 找不到对应 ID 标识的调度器
+          '401':
+            description: 请求体和 URL 中的调度器 ID 不匹配，或请求体中调度程序不存在
+      patch:
+        summary: 更新当前调度器的信息
+        tags:
+          - 调度器
+        parameters:
+          - name: id
+            description: 调度器 ID
+            in: path
+            required: true
+            schema:
+              type: integer
+        requestBody:
+          required: true
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Manager'
+        responses:
+          '204':
+            description: 更新成功
+          '404':
+            description: 找不到对应 ID 标识的调度器
+          '401':
+            description: 请求体和 URL 中的调度器 ID 不匹配，或请求体中调度程序不存在
+      delete:
+        summary: 删除当前调度器
+        tags:
+          - 调度器
+        parameters:
+          - name: id
+            description: 调度器 ID
+            in: path
+            required: true
+            schema:
+              type: integer
+        responses:
+          '204':
+            description: 删除成功
+          '409':
+            description: 当前调度器已被激活，无法删除
+    /v1/manager/{id}/activation:
+      get:
+        summary: 获取当前调度器的激活
+        tags:
+          - 调度器
+        parameters:
+          - name: id
+            description: 调度器 ID
+            in: path
+            required: true
+            schema:
+              type: integer
+        responses:
+          '200':
+            description: 成功
+            content:
+              application/json:
+                schema:
+                  oneOf:
+                    - $ref: '#/components/schemas/ManagerDisabled'
+                    - $ref: '#/components/schemas/ManagerRunning'
+                    - $ref: '#/components/schemas/ManagerError'
+          '404':
+            description: 找不到对应 ID 标识的调度器
+          '401':
+            description: 请求体和 URL 中的调度器 ID 不匹配
+      patch:
+        summary: 更新当前调度器的激活
+        tags:
+          - 调度器
+        parameters:
+          - name: id
+            description: 调度器 ID
+            in: path
+            required: true
+            schema:
+              type: integer
+        requestBody:
+          required: true
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/ManagerDisabled'
+                  - $ref: '#/components/schemas/ManagerRunning'
+
+        responses:
+          '204':
+            description: 更新成功
+          '404':
+            description: 找不到对应 ID 标识的调度器
+          '401':
+            description: 请求体和 URL 中的调度器 ID 不匹配
+  
+  components:
+    securitySchemes:
+      Cookie:
+        type: apiKey
+        in: cookie
+        name: auth_token
+  
+    schemas:
+      BaseInputDeclaration:
+        type: object
+        description: 一个输入
+        properties:
+          id:
+            type: string
+            description: 参数的唯一 ID，仅可包含大小写字母和下划线
+          name:
+            type: string
+            description: 参数的人类可读名称
+          description:
+            type: string
+            description: 参数的人类可读描述
+          multivalue:
+            type: boolean
+            description: |
+              是否启用多值输入。
+              若是，输入 <id> 会为 f32 类型，代表输入的个数；输入 <id>.<index> 为该参数类型，代表各个输入的值
+      NumberInputDeclaration:
+        allOf:
+          - $ref: '#/components/schemas/BaseInputDeclaration'
+          - type: object
+            description: 一个 f32 类型的输入
+            properties:
+              type:
+                type: string
+                enum:
+                  - number
+      PoseInputDeclaration:
+        allOf:
+          - $ref: '#/components/schemas/BaseInputDeclaration'
+          - type: object
+            description: 一个游戏内 XYZ 坐标 + 四元数旋转类型的输入
+            properties:
+              type:
+                type: string
+                enum:
+                  - pose
+  
+      InputValue:
+        type: array
+        description: 程序输入值实参
+        items:
+          type: object
+          properties:
+            id:
+              type: string
+              description: 参数的唯一 ID，仅可包含大小写字母和下划线
+            value:
+              anyOf:
+                - type: object
+                  description: Pose 类型参数
+                  properties:
+                    x:
+                      type: number
+                    y:
+                      type: number
+                    z:
+                      type: number
+                    qx:
+                      type: number
+                    qy:
+                      type: number
+                    qz:
+                      type: number
+                    qw:
+                      type: number
+                - type: number
+                  description: f32 类型参数
+  
+      Program:
+        type: object
+        properties:
+          id:
+            type: integer
+            description: 程序的唯一 ID
+          name:
+            type: string
+            description: 程序的人类可读名称
+          description:
+            type: string
+            description: 程序的人类可读描述
+          inputs:
+            type: array
+            description: 程序的输入形参
+            items:
+              oneOf:
+                - $ref: '#/components/schemas/NumberInputDeclaration'
+                - $ref: '#/components/schemas/PoseInputDeclaration'
+  
+      Clip:
+        type: object
+        properties:
+          id:
+            type: integer
+            description: 分镜头的唯一 ID
+          name:
+            type: string
+            description: 分镜头的人类可读名称
+          description:
+            type: string
+            description: 分镜头的人类可读描述
+          technique:
+            type: number
+            description: 分镜头所用到技法程序的 ID
+          inputs:
+            $ref: '#/components/schemas/InputValue'
+  
+      Manager:
+        type: object
+        properties:
+          id:
+            type: integer
+            description: 调度器的唯一 ID
+          name:
+            type: string
+            description: 调度器的人类可读名称
+          description:
+            type: string
+            description: 调度器的人类可读描述
+          clips:
+            type: array
+            description: 调度器所用到分镜头的全部 ID
+            items:
+              type: number
+          program:
+            type: number
+            description: 调度器所用到的程序 ID
+          inputs:
+            $ref: '#/components/schemas/InputValue'
+            
+      ManagerDisabled:
+        type: object
+        description: 未运行
+        properties:
+          status:
+            type: string
+            enum:
+              - DISABLED
+      ManagerRunning:
+        type: object
+        description: 未运行
+        properties:
+          status:
+            type: string
+            enum:
+              - RUNNING
+      ManagerError:
+        type: object
+        description: 错误
+        properties:
+          status:
+            type: string
+            enum:
+              - ERROR
+          error:
+            type: array
+            items:
+              type: string

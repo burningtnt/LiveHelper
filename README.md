@@ -4,18 +4,18 @@
 > 太长不看：ReplayMod, 但是直播。
 
 支持多机位直播。
+
 - 将渲染结果通过 Spout 库推流至外部程序 (如 OBS)；
 - 基于 WebAssembly 的可编程控制。
 
 # 机位控制流
 
-LiveHelper 使用 技法 (Technique) + 分镜头 (Clip) + 调度器 (Manager) 三级控制系统。
+LiveHelper 使用 分镜头 (Clip) + 调度器 (Manager) 三级控制系统。
 
-- 技法 (Technique): 给定一系列输入 (Input), 计算摄像机的位置与视角；
-- 分镜头 (Clip): 用户可配置一系列静态输入 (Input) 和一个技法 (Technique), 向技法 (Technique) 传入输入 (Input), 获得摄像机位置与视角；
-- 调度器 (Manager): 用户可配置一系列静态输入 (Input), 按照当前时间, 激活一个或多个分镜头 (Clip), 输出多个画面或将多个渲染结果合并输出为一个画面。
-
-其中, 技法 (Technique) 和调度器 (Manager) 均为 LiveHelper 内置或用户自定义的 WebAssembly 脚本。
+|      类型       |        所需的程序        |        输出         |
+|:-------------:|:-------------------:|:-----------------:|
+|  分镜头 (Clip)   | 一个技法 WebAssembly 程序 |     摄像机的位置与视角     |
+| 调度器 (Manager) | 一个调度 WebAssembly 程序 | 一个分镜头，或多个分镜头和合并策略 |
 
 LiveHelper 在每帧按照如下流程完成机位计算：
 
@@ -32,6 +32,7 @@ LiveHelper 在每帧按照如下流程完成机位计算：
 ## 句柄 (Handle)
 
 和 Windows 类似，LiveHelper 使用句柄 (Handle) 作为外部资源的标识，其类型为 `i32(&handle)` 或 `i32(handle)`。
+
 - `i32(&handle)`: 所有权保留在 WebAssembly 层；
 - `i32(handle)` (方法返回值): WebAssembly 获得其所有权；
 - `i32(handle)` (方法参数): WebAssembly 失去其所有权；
@@ -150,7 +151,7 @@ LH.Manager.EntryPoint(
 
 #### 预定义输入 (Input) `lh.camera.$id.name` / `GetBuffer`
 
-可支配的第 N 个 (0-based) 分镜头 (Clip) 名称：UTF-8 编码的 null-terminated 字符串 
+可支配的第 N 个 (0-based) 分镜头 (Clip) 名称：UTF-8 编码的 null-terminated 字符串
 
 #### LH.Manager.Render.Single(i32(unsigned)) -> i32(handle, render_request)
 
