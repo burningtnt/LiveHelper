@@ -26,6 +26,9 @@ import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.lang.invoke.VarHandle;
 import java.util.Objects;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 /* package-private */ final class ScheduledActiveStream {
@@ -57,6 +60,7 @@ import java.util.concurrent.TimeUnit;
     private final ActiveStream stream;
     private final Camera camera;
     private final MainTarget renderTarget;
+    private final ExecutorService executor;
     private final SpoutSender sender;
     private final MainScheduler.Scheduler renderScheduler;
 
@@ -65,43 +69,51 @@ import java.util.concurrent.TimeUnit;
         this.stream = stream;
         this.camera = new Camera();
         this.renderTarget = new MainTarget(config.width(), config.height(), useStencil);
+        this.executor = Executors.newSingleThreadExecutor(Thread.ofPlatform().name("LiveHelper Worker for " + config.name()).daemon().factory());
         this.sender = new SpoutSender(config.name());
         this.renderScheduler = new MainScheduler.Scheduler() {
-            private ActiveStreamWorker.FrameRequest request;
+            private final long startNs = System.nanoTime();
+            private long futureNs;
+            private Future<ActiveStream.RenderRequest> future;
+
+            private void requestFrame(long durationNs) {
+                futureNs = System.nanoTime();
+                future = executor.submit(() -> stream.computeFrame(durationNs));
+            }
 
             {
-                request = ActiveStreamWorker.requestFrame(0, stream);
+                requestFrame(0);
                 submitTask(System.nanoTime(), new MainScheduler.ExecutableTask() {
                     @Override
-                    public void run(boolean isOutOfMemoryRecovery, long startNs) {
+                    public void run(boolean isOutOfMemoryRecovery, long taskNs) {
                         if (stopped()) {
                             return;
                         }
 
                         long frameNs = Math.max(TimeUnit.MILLISECONDS.toNanos(5), TimeUnit.SECONDS.toNanos(1) / config.fps());
 
-                        switch (request.future().state()) {
+                        switch (future.state()) {
                             case SUCCESS -> {
-                                ActiveStream.RenderRequest frame = request.future().resultNow();
-                                request = ActiveStreamWorker.requestFrame(startNs + frameNs, stream);
+                                ActiveStream.RenderRequest frame = future.resultNow();
+                                requestFrame(taskNs + frameNs - startNs);
                                 if (frame != null) {
                                     render(isOutOfMemoryRecovery, frame);
                                 }
                             }
                             case RUNNING -> {
-                                if (startNs - request.timeNs() >= 2 * frameNs) {
+                                if (taskNs - futureNs >= 2 * frameNs) {
                                     LOGGER.warn("Camera {} can't keep up! Your program is too slow!", config.name());
                                 }
                             }
                             case CANCELLED -> stop();
                             case FAILED -> {
-                                LOGGER.error("Camera {} frame computing failed.", config.name(), request.future().exceptionNow());
+                                LOGGER.error("Camera {} frame computing failed.", config.name(), future.exceptionNow());
                                 stop();
                             }
                         }
 
                         if (!stopped()) {
-                            submitTask(startNs + frameNs, this);
+                            submitTask(taskNs + frameNs, this);
                         }
                     }
                 });
@@ -115,23 +127,26 @@ import java.util.concurrent.TimeUnit;
             @Override
             public void stop() {
                 super.stop();
-                if (request != null) {
-                    request.future().cancel(true);
-                }
+                future.cancel(true);
             }
         };
     }
 
     private void render(boolean isOutOfMemoryRecovery, ActiveStream.RenderRequest frame) {
         Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft.level == null || minecraft.player == null) {
+            return;
+        }
 
         RenderTarget previousRenderTarget = minecraft.mainRenderTarget;
         Camera previousCamera = minecraft.gameRenderer.mainCamera;
         boolean previousHideGui = minecraft.options.hideGui;
         try {
             setupInternal(minecraft, frame);
-            ScopedValue.where(ActiveStreamRenderer.CURRENT_INSTANCE, new ActiveStreamRenderer.ActiveInstance(this, frame))
-                    .run(() -> renderInternal(minecraft, isOutOfMemoryRecovery, minecraft.gameRenderer, minecraft.getDeltaTracker()));
+            ActiveStreamRenderer.runWith(
+                    this, frame,
+                    () -> renderInternal(minecraft, isOutOfMemoryRecovery, minecraft.gameRenderer, minecraft.getDeltaTracker())
+            );
         } finally {
             minecraft.mainRenderTarget = previousRenderTarget;
             minecraft.gameRenderer.mainCamera = previousCamera;
@@ -218,6 +233,7 @@ import java.util.concurrent.TimeUnit;
     public void close() {
         renderTarget.destroyBuffers();
         sender.close();
+        executor.shutdownNow();
         renderScheduler.stop();
     }
 

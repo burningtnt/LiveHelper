@@ -54,7 +54,7 @@ public abstract class MinecraftMixin {
                     Quaternionf rotation = new Quaternionf()
                             .rotateX(-(float) (0.5 * Math.PI));
                     return new ActiveStream.RenderRequest(
-                            position.x, position.y + 10, position.z,
+                            position.x + 16, position.y + 10, position.z + 16,
                             rotation.x, rotation.y, rotation.z, rotation.w,
                             80
                     );

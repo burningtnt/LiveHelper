@@ -13,15 +13,13 @@ public final class ActiveStreamRenderer {
     private ActiveStreamRenderer() {
     }
 
-    /* package-private */ static final ScopedValue<ActiveInstance> CURRENT_INSTANCE = ScopedValue.newInstance();
+    private static final ScopedValue<ActiveInstance> CURRENT_INSTANCE = ScopedValue.newInstance();
 
     public static final class ActiveInstance {
         private final ScheduledActiveStream instance;
-        private final ActiveStream.RenderRequest request;
 
-        /* package-private */ ActiveInstance(ScheduledActiveStream instance, ActiveStream.RenderRequest request) {
+        private ActiveInstance(ScheduledActiveStream instance, ActiveStream.RenderRequest request) {
             this.instance = instance;
-            this.request = request;
         }
 
         public void sendFrame(int glFrameBuffer, int width, int height) {
@@ -31,10 +29,10 @@ public final class ActiveStreamRenderer {
         public ActiveStream.Config config() {
             return instance.config();
         }
+    }
 
-        public ActiveStream.RenderRequest request() {
-            return request;
-        }
+    /* package-private */ static void runWith(ScheduledActiveStream instance, ActiveStream.RenderRequest request, Runnable runnable) {
+        ScopedValue.where(CURRENT_INSTANCE, new ActiveInstance(instance, request)).run(runnable);
     }
 
     public static boolean hasActive() {
@@ -57,7 +55,6 @@ public final class ActiveStreamRenderer {
             }
         }
 
-        // SAFETY: CURRENT_INSTANCE is unset, so mainRenderTarget is the vanilla instance.
         INSTANCES.add(new ScheduledActiveStream(config, stream, Minecraft.getInstance().mainRenderTarget.useStencil));
     }
 
