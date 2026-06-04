@@ -1,4 +1,4 @@
-package net.burningtnt.livehelper.dashboard;
+package net.burningtnt.livehelper.components.executor;
 
 import com.dylibso.chicory.runtime.ExportFunction;
 import com.dylibso.chicory.runtime.Instance;

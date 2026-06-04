@@ -298,8 +298,4 @@ import java.util.concurrent.TimeUnit;
     public ActiveStream stream() {
         return stream;
     }
-
-    public SpoutSender sender() {
-        return sender;
-    }
 }

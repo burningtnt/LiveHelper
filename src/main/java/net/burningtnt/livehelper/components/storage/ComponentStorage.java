@@ -1,6 +1,5 @@
 package net.burningtnt.livehelper.components.storage;
 
-import com.dylibso.chicory.wasm.Parser;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import net.burningtnt.livehelper.components.Clip;
@@ -16,7 +15,6 @@ import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
 public final class ComponentStorage {
@@ -53,8 +51,6 @@ public final class ComponentStorage {
     };
 
     public final ComponentStorageBucket<ProgramScript> scripts = new ComponentStorageBucket<>("program-scripts") {
-        private static final Parser PARSER = Parser.builder().withValidation(true).build();
-
         @Override
         protected int getID(ProgramScript object) {
             return object.id();
@@ -66,9 +62,7 @@ public final class ComponentStorage {
             try (OutputStream os = Files.newOutputStream(file)) {
                 is.transferTo(os);
             }
-            try (InputStream is2 = Files.newInputStream(file)){
-                return new ProgramScript(id, file, PARSER.parse(() -> is2));
-            }
+            return ProgramScript.of(id, file);
         }
 
         @Override

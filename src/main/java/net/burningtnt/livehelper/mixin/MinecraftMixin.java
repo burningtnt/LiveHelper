@@ -17,6 +17,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
+import java.lang.ref.Reference;
 import java.util.List;
 
 @Mixin(Minecraft.class)
@@ -44,8 +45,14 @@ public abstract class MinecraftMixin {
         MainScheduler.ofFrame(() -> ActiveStreamRenderer.hasActive() ? 15 : this.gameRenderer.getGameRenderState().framerateLimit)
                 .schedule((isOutOfMemoryRecovery, _) -> runTick(!isOutOfMemoryRecovery));
 
+        Thread.ofPlatform().daemon().name("LiveHelper Debugger Evaluation").start(() -> {
+            while (true) {
+                Reference.reachabilityFence(null);
+            }
+        });
+
         ActiveStreamRenderer.activate(
-                new ActiveStream.Config("ABOVE", 854, 480, 30, 2, false, false),
+                new ActiveStream.Config("ABOVE", 854, 480, 30, 2),
                 _ -> {
                     LocalPlayer player = Minecraft.getInstance().player;
                     if (player == null) {

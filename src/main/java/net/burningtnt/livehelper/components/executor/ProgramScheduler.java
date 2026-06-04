@@ -1,5 +1,7 @@
-package net.burningtnt.livehelper.dashboard;
+package net.burningtnt.livehelper.components.executor;
 
+import it.unimi.dsi.fastutil.ints.Int2IntMap;
+import it.unimi.dsi.fastutil.ints.Int2IntOpenHashMap;
 import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import net.burningtnt.livehelper.components.Clip;
@@ -13,11 +15,12 @@ import net.minecraft.client.Minecraft;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
-import org.jetbrains.annotations.Nullable;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 
 @EventBusSubscriber
 public final class ProgramScheduler {
@@ -66,21 +69,26 @@ public final class ProgramScheduler {
 
             config = new ActiveStream.Config(manager.name(), manager.width(), manager.height(), manager.fps(), manager.renderDistance());
             stream = new ActiveStream() {
-                @Nullable
                 @Override
                 public List<RenderStep> computeFrame(long durationNs) {
                     try {
                         RenderInstruction instruction = managerProgram.executeProgram(RenderInstruction.class);
-                        return computeFrameInternal(instruction, new Int2ObjectOpenHashMap<>(), new HashSet<>());
+
+                        List<RenderStep> steps = new ArrayList<>();
+                        int finalID = collectSteps(steps, new AtomicInteger(0), instruction, new Int2IntOpenHashMap(), new HashSet<>());
+                        steps.add(new RenderStep.Display(finalID));
+                        return steps;
                     } catch (RuntimeException | ComponentException e) {
                         STATUS.put(managerID, new ManagerStatus.Failed(e));
                         throw e instanceof RuntimeException re ? re : new RuntimeException(e);
                     }
                 }
 
-                private List<RenderStep> computeFrameInternal(
+                private int /* targetID */ collectSteps(
+                        List<RenderStep> steps,
+                        AtomicInteger currentTargetID,
                         RenderInstruction current,
-                        Int2ObjectMap<RenderStep.Render> clips,
+                        Int2IntMap renderedClips, // clipID -> targetID
                         Set<RenderInstruction> previous
                 ) throws ComponentException {
                     if (!previous.add(current)) {
@@ -89,18 +97,34 @@ public final class ProgramScheduler {
 
                     switch (current) {
                         case RenderInstruction.Single(int clipID) -> {
-                            RenderStep.Render request = clips.get(clipID);
-                            if (request == null) {
-                                clips.put(clipID, request = clipPrograms.get(clipID).executeProgram(RenderStep.Render.class));
+                            int targetID = renderedClips.getOrDefault(clipID, Integer.MIN_VALUE);
+                            if (targetID == Integer.MIN_VALUE) {
+                                steps.add(new RenderStep.Render(
+                                        clipPrograms.get(clipID).executeProgram(FrameRequest.class),
+                                        targetID = requestTargetID(currentTargetID)
+                                ));
+                                return targetID;
                             }
-                            return request;
+                            return targetID;
                         }
                         case RenderInstruction.Mix(RenderInstruction left, RenderInstruction right, float progress) -> {
-                            RenderStep lr = computeFrameInternal(left, clips, previous);
-                            RenderStep rr = computeFrameInternal(right, clips, previous);
-                            return new RenderStep.Mix(lr, rr, progress);
+                            int leftID = collectSteps(steps, currentTargetID, left, renderedClips, previous);
+                            int rightID = collectSteps(steps, currentTargetID, right, renderedClips, previous);
+                            int targetID = requestTargetID(currentTargetID);
+
+                            steps.add(new RenderStep.Mix(leftID, rightID, targetID, progress));
+                            return targetID;
                         }
                     }
+                }
+
+                private int /* targetID */ requestTargetID(AtomicInteger currentTargetID) {
+                    int targetID = currentTargetID.getPlain();
+                    if (targetID == RenderStep.MAX_BUFFER) {
+                        throw new IndexOutOfBoundsException("Requires too may targets!");
+                    }
+                    currentTargetID.set(targetID + 1);
+                    return targetID;
                 }
             };
         } catch (RuntimeException | ComponentException e) {
