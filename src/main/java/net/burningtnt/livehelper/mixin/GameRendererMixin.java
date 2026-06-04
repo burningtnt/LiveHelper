@@ -27,7 +27,7 @@ public class GameRendererMixin {
     )
     private boolean beforeExtractGUI(GameRenderer gameRenderer, DeltaTracker deltaTracker, boolean shouldRenderLevel, boolean resourcesLoaded) {
         ActiveStreamRenderer.ActiveInstance instance = ActiveStreamRenderer.getActive();
-        if (instance != null && !instance.config().renderHUD()) {
+        if (instance != null && !instance.request().renderHUD()) {
             this.gameRenderState.guiRenderState.reset();
             return false;
         }
@@ -44,6 +44,6 @@ public class GameRendererMixin {
     )
     private boolean beforeRenderHand(GameRenderer gameRenderer, CameraRenderState cameraState, float deltaPartialTick, Matrix4fc modelViewMatrix) {
         ActiveStreamRenderer.ActiveInstance instance = ActiveStreamRenderer.getActive();
-        return instance == null || instance.config().renderHand();
+        return instance == null || instance.request().renderHand();
     }
 }

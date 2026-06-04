@@ -17,6 +17,8 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
+import java.util.List;
+
 @Mixin(Minecraft.class)
 public abstract class MinecraftMixin {
     @Shadow
@@ -53,10 +55,18 @@ public abstract class MinecraftMixin {
                     Vec3 position = player.position();
                     Quaternionf rotation = new Quaternionf()
                             .rotateX(-(float) (0.5 * Math.PI));
-                    return new ActiveStream.RenderRequest(
-                            position.x + 16, position.y + 10, position.z + 16,
-                            rotation.x, rotation.y, rotation.z, rotation.w,
-                            80
+
+                    return List.of(
+                            new ActiveStream.RenderStep.Render(
+                                    new ActiveStream.FrameRequest(
+                                            position.x + 16, position.y + 10, position.z + 16,
+                                            rotation.x, rotation.y, rotation.z, rotation.w,
+                                            80,
+                                            false, false
+                                    ),
+                                    0
+                            ),
+                            new ActiveStream.RenderStep.Display(0)
                     );
                 });
     }

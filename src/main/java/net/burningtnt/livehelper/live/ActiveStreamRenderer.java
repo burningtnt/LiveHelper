@@ -17,21 +17,23 @@ public final class ActiveStreamRenderer {
 
     public static final class ActiveInstance {
         private final ScheduledActiveStream instance;
+        private final ActiveStream.FrameRequest request;
 
-        private ActiveInstance(ScheduledActiveStream instance, ActiveStream.RenderRequest request) {
+        private ActiveInstance(ScheduledActiveStream instance, ActiveStream.FrameRequest request) {
             this.instance = instance;
-        }
-
-        public void sendFrame(int glFrameBuffer, int width, int height) {
-            instance.sender().sendFrameBufferObject(glFrameBuffer, width, height);
+            this.request = request;
         }
 
         public ActiveStream.Config config() {
             return instance.config();
         }
+
+        public ActiveStream.FrameRequest request() {
+            return request;
+        }
     }
 
-    /* package-private */ static void runWith(ScheduledActiveStream instance, ActiveStream.RenderRequest request, Runnable runnable) {
+    /* package-private */ static void runWith(ScheduledActiveStream instance, ActiveStream.FrameRequest request, Runnable runnable) {
         ScopedValue.where(CURRENT_INSTANCE, new ActiveInstance(instance, request)).run(runnable);
     }
 
@@ -59,10 +61,6 @@ public final class ActiveStreamRenderer {
     }
 
     public static void deactivate(ActiveStream stream) {
-        if (CURRENT_INSTANCE.isBound()) {
-            throw new IllegalStateException("Cannot activate a new stream when rendering frames.");
-        }
-
         for (int i = 0; i < INSTANCES.size(); i++) {
             ScheduledActiveStream instance = INSTANCES.get(i);
             if (instance.stream() == stream) {
@@ -71,13 +69,19 @@ public final class ActiveStreamRenderer {
                 break;
             }
         }
-        throw new IllegalArgumentException("ActiveStream " + stream + " hasn't already been activated!");
+        throw new IllegalArgumentException("ActiveStream " + stream + " hasn't been activated yet!");
     }
 
     @SubscribeEvent
     private static void tick(ClientTickEvent.Pre event) {
-        for (ScheduledActiveStream instance : INSTANCES) {
-            instance.tick();
+        for (int i = INSTANCES.size() - 1; i >= 0; i--) {
+            ScheduledActiveStream stream = INSTANCES.get(i);
+            if (stream.stopped()) {
+                INSTANCES.remove(i);
+                continue;
+            }
+
+            stream.tick();
         }
     }
 }

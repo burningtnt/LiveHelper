@@ -448,6 +448,12 @@
             id:
               type: string
               description: 参数的唯一 ID，仅可包含大小写字母和下划线
+            type:
+              type: string
+              description: 当前参数的类型，必须与所用程序声明的类型匹配
+              enum:
+                - number
+                - pose
             value:
               anyOf:
                 - type: object
@@ -482,6 +488,12 @@
           description:
             type: string
             description: 程序的人类可读描述
+          usage:
+            type: string
+            description: 程序的用途：分镜头或调度器
+            enum:
+              - clip
+              - manager
           inputs:
             type: array
             description: 程序的输入形参

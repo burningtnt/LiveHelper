@@ -33,7 +33,7 @@ public final class MainScheduler {
 
         protected abstract void scheduleInternal(ExecutableTask task);
 
-        protected final boolean stopped() {
+        public final boolean stopped() {
             return this.stopped;
         }
 
