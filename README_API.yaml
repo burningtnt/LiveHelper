@@ -1,11 +1,11 @@
   openapi: 3.0.3
-  
+
   servers:
     - url: http:/<LiveHelper Local Server>/api/v1
-  
+
   security:
     - Cookie: [ ]
-  
+
   info:
     title: Live Helper API
     description: |
@@ -14,7 +14,7 @@
       - 将渲染结果通过 Spout 库推流至外部程序 (如 OBS)；
       - 基于 WebAssembly 的可编程控制。
     version: 'v1'
-  
+
   tags:
     - name: 程序
       description: |
@@ -23,7 +23,7 @@
       description: 配置一系列输入 (Input) 实参和一个技法程序, 向技法 (Technique) 传入输入 (Input), 获得摄像机位置与视角。
     - name: 调度器
       description: 配置一系列输入 (Input) 实参和一个调度程序, 向按照当前时间, 激活一个或多个分镜头 (Clip), 输出多个画面或将多个渲染结果合并输出为一个画面。
-  
+
   paths:
     /v1/program:
       get:
@@ -43,13 +43,16 @@
         summary: 创建一个新的程序
         tags:
           - 程序
+        requestBody:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Program'
         responses:
-          '200':
+          '204':
             description: 成功创建
-            content:
-              application/json:
-                schema:
-                  $ref: '#/components/schemas/Program'
+          '409':
+            description: 新创建对象的 ID 与已有某对象的 ID 重复
     /v1/program/{id}:
       get:
         summary: 获取当前程序的信息
@@ -71,8 +74,6 @@
                   $ref: '#/components/schemas/Program'
           '404':
             description: 找不到对应 ID 标识的程序
-          '401':
-            description: 请求体和 URL 中的程序 ID 不匹配
       patch:
         summary: 更新当前程序的信息
         tags:
@@ -111,6 +112,8 @@
         responses:
           '204':
             description: 删除成功
+          '404':
+            description: 找不到对应 ID 标识的程序
           '409':
             description: 当前程序被分镜头或调度器使用，不能删除
     /v1/program/{id}/code:
@@ -152,11 +155,11 @@
               schema:
                 type: string
         responses:
-          '200':
+          '204':
             description: 更新成功
           '404':
             description: 找不到对应 ID 标识的程序
-  
+
     /v1/clip:
       get:
         summary: 罗列全部分镜头的信息
@@ -175,13 +178,16 @@
         summary: 创建一个新的分镜头
         tags:
           - 分镜头
+        requestBody:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Program'
         responses:
-          '200':
+          '204':
             description: 成功
-            content:
-              application/json:
-                schema:
-                  $ref: '#/components/schemas/Clip'
+          '409':
+            description: 新创建对象的 ID 与已有某对象的 ID 重复
           '401':
             description: 请求体中技法程序不存在
     /v1/clip/{id}:
@@ -205,8 +211,6 @@
                   $ref: '#/components/schemas/Clip'
           '404':
             description: 找不到对应 ID 标识的分镜头
-          '401':
-            description: 请求体和 URL 中的分镜头 ID 不匹配
       patch:
         summary: 更新当前分镜头的信息
         tags:
@@ -247,7 +251,7 @@
             description: 删除成功
           '409':
             description: 当前分镜头被某个调度器使用，无法删除
-  
+
     /v1/manager:
       get:
         summary: 罗列全部调度器的信息
@@ -266,15 +270,18 @@
         summary: 创建一个新的调度器
         tags:
           - 调度器
+        requestBody:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Program'
         responses:
-          '200':
+          '204':
             description: 成功
-            content:
-              application/json:
-                schema:
-                  $ref: '#/components/schemas/Manager'
+          '409':
+            description: 新创建对象的 ID 与已有某对象的 ID 重复
           '401':
-            description: 请求体中技法程序不存在
+            description: 请求体中技法程序不存在，或分镜头不存在
     /v1/manager/{id}:
       get:
         summary: 获取当前调度器的信息
@@ -296,8 +303,6 @@
                   $ref: '#/components/schemas/Manager'
           '404':
             description: 找不到对应 ID 标识的调度器
-          '401':
-            description: 请求体和 URL 中的调度器 ID 不匹配，或请求体中调度程序不存在
       patch:
         summary: 更新当前调度器的信息
         tags:
@@ -362,8 +367,6 @@
                     - $ref: '#/components/schemas/ManagerError'
           '404':
             description: 找不到对应 ID 标识的调度器
-          '401':
-            description: 请求体和 URL 中的调度器 ID 不匹配
       patch:
         summary: 更新当前调度器的激活
         tags:
@@ -389,16 +392,14 @@
             description: 更新成功
           '404':
             description: 找不到对应 ID 标识的调度器
-          '401':
-            description: 请求体和 URL 中的调度器 ID 不匹配
-  
+
   components:
     securitySchemes:
       Cookie:
         type: apiKey
         in: cookie
         name: auth_token
-  
+
     schemas:
       BaseInputDeclaration:
         type: object
@@ -438,7 +439,7 @@
                 type: string
                 enum:
                   - pose
-  
+
       InputValue:
         type: array
         description: 程序输入值实参
@@ -475,7 +476,7 @@
                       type: number
                 - type: number
                   description: f32 类型参数
-  
+
       Program:
         type: object
         properties:
@@ -501,7 +502,7 @@
               oneOf:
                 - $ref: '#/components/schemas/NumberInputDeclaration'
                 - $ref: '#/components/schemas/PoseInputDeclaration'
-  
+
       Clip:
         type: object
         properties:
@@ -519,7 +520,7 @@
             description: 分镜头所用到技法程序的 ID
           inputs:
             $ref: '#/components/schemas/InputValue'
-  
+
       Manager:
         type: object
         properties:
@@ -542,7 +543,7 @@
             description: 调度器所用到的程序 ID
           inputs:
             $ref: '#/components/schemas/InputValue'
-            
+
       ManagerDisabled:
         type: object
         description: 未运行
@@ -550,15 +551,15 @@
           status:
             type: string
             enum:
-              - DISABLED
+              - disabled
       ManagerRunning:
         type: object
-        description: 未运行
+        description: 运行中
         properties:
           status:
             type: string
             enum:
-              - RUNNING
+              - running
       ManagerError:
         type: object
         description: 错误
@@ -566,7 +567,7 @@
           status:
             type: string
             enum:
-              - ERROR
+              - error
           error:
             type: array
             items:

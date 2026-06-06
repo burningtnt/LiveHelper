@@ -72,12 +72,14 @@ import java.util.concurrent.TimeUnit;
         this.camera = new Camera();
         this.renderTargets = new MainTarget[ActiveStream.RenderStep.MAX_BUFFER];
         this.renderTargets[0] = new MainTarget(config.width(), config.height(), useStencil);
-        this.executor = Executors.newSingleThreadExecutor(Thread.ofPlatform().name("LiveHelper Worker for " + config.name()).daemon().factory());
+        this.executor = Executors.newSingleThreadExecutor(Thread.ofPlatform().name("LiveHelper Camera Worker for " + config.name()).daemon().factory());
         this.sender = new SpoutSender(config.name());
         this.renderScheduler = new MainScheduler.Scheduler() {
             private final long startNs = System.nanoTime();
             private long futureNs;
             private Future<@Nullable List<ActiveStream.RenderStep>> future;
+
+            private long lastLogTimestamp = -1;
 
             private void requestFrame(long durationNs) {
                 futureNs = System.nanoTime();
@@ -104,8 +106,9 @@ import java.util.concurrent.TimeUnit;
                                 }
                             }
                             case RUNNING -> {
-                                if (taskNs - futureNs >= 2 * frameNs) {
+                                if (taskNs - futureNs >= 2 * frameNs && System.currentTimeMillis() - lastLogTimestamp >= TimeUnit.SECONDS.toMillis(5)) {
                                     LOGGER.warn("Camera {} can't keep up! Your program is too slow!", config.name());
+                                    lastLogTimestamp = System.currentTimeMillis();
                                 }
                             }
                             case CANCELLED -> ActiveStreamRenderer.deactivate(stream);

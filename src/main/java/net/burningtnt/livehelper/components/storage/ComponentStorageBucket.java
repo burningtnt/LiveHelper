@@ -22,8 +22,6 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.RunnableFuture;
-import java.util.concurrent.RunnableScheduledFuture;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
@@ -72,6 +70,18 @@ public abstract class ComponentStorageBucket<T> {
         return object;
     }
 
+    public T getOrDefault(int id, T defaultValue) throws ComponentException {
+        return storage.getOrDefault(id, defaultValue);
+    }
+
+    public boolean contains(int id) {
+        return storage.containsKey(id);
+    }
+
+    public List<T> getAll() {
+        return new ArrayList<>(storage.values());
+    }
+
     public void put(T object) throws ComponentException {
         int id = getID(object);
         if (storage.putIfAbsent(id, object) != null) {
@@ -88,19 +98,23 @@ public abstract class ComponentStorageBucket<T> {
         enqueueUpdate(id, object);
     }
 
+    public void set(T object) {
+        int id = getID(object);
+        storage.put(id, object);
+        enqueueUpdate(id, object);
+    }
+
     public void remove(int id) throws ComponentException {
         if (storage.remove(id) == null) {
-            throw new ComponentException.IDDuplicate(id).make();
+            throw new ComponentException.IDNotFound(id).make();
         }
         enqueueUpdate(id, null);
     }
 
-    public int requestID() {
-        int id = 0;
-        while (storage.containsKey(id)) {
-            id++;
+    public void removeIfExist(int id) {
+        if (storage.remove(id) != null) {
+            enqueueUpdate(id, null);
         }
-        return id;
     }
 
     @NonNull

@@ -2,10 +2,16 @@ package net.burningtnt.livehelper.components.storage;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.google.gson.TypeAdapter;
+import com.google.gson.TypeAdapterFactory;
+import com.google.gson.reflect.TypeToken;
+import com.google.gson.stream.JsonReader;
+import com.google.gson.stream.JsonWriter;
 import net.burningtnt.livehelper.components.Clip;
 import net.burningtnt.livehelper.components.Manager;
 import net.burningtnt.livehelper.components.Program;
 import net.burningtnt.livehelper.components.ProgramScript;
+import net.burningtnt.livehelper.components.Validation;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -13,12 +19,33 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.concurrent.CompletableFuture;
 
 public final class ComponentStorage {
-    private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
+    public static final Gson GSON = new GsonBuilder()
+            .setPrettyPrinting()
+            .registerTypeAdapterFactory(new TypeAdapterFactory() {
+                @Override
+                public <T> TypeAdapter<T> create(Gson gson, TypeToken<T> type) {
+                    TypeAdapter<T> delegate = gson.getDelegateAdapter(this, type);
+                    return new TypeAdapter<T>() {
+                        @Override
+                        public void write(JsonWriter out, T value) throws IOException {
+                            delegate.write(out, value);
+                        }
+
+                        @Override
+                        public T read(JsonReader in) throws IOException {
+                            T object = delegate.read(in);
+                            if (object instanceof Validation validation) {
+                                validation.validate();
+                            }
+                            return object;
+                        }
+                    };
+                }
+            })
+            .create();
 
     private static abstract class JsonStorageBucket<T> extends ComponentStorageBucket<T> {
         private final Class<T> clazz;
@@ -58,18 +85,12 @@ public final class ComponentStorage {
 
         @Override
         protected ProgramScript read(int id, InputStream is) throws IOException {
-            Path file = Files.createTempFile("program-script-", ".wasm");
-            try (OutputStream os = Files.newOutputStream(file)) {
-                is.transferTo(os);
-            }
-            return ProgramScript.of(id, file);
+            return ProgramScript.compile(id, new InputStreamReader(is, StandardCharsets.UTF_8).readAllAsString());
         }
 
         @Override
         protected void write(OutputStream os, ProgramScript object) throws IOException {
-            try (InputStream is = Files.newInputStream(object.wasm())) {
-                is.transferTo(os);
-            }
+            new OutputStreamWriter(os, StandardCharsets.UTF_8).write(object.script());
         }
     };
 

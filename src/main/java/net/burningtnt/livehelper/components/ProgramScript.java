@@ -4,16 +4,12 @@ import com.dylibso.chicory.wasm.Parser;
 import com.dylibso.chicory.wasm.WasmModule;
 
 import java.io.IOException;
-import java.io.InputStream;
-import java.nio.file.Files;
-import java.nio.file.Path;
+import java.util.concurrent.CompletableFuture;
 
-public record ProgramScript(int id, Path wasm, WasmModule module) {
+public record ProgramScript(int id, String script, CompletableFuture<WasmModule> module) {
     private static final Parser PARSER = Parser.builder().withValidation(true).build();
 
-    public static ProgramScript of(int id, Path wasm) throws IOException {
-        try (InputStream is = Files.newInputStream(wasm)) {
-            return new ProgramScript(id, wasm, PARSER.parse(() -> is));
-        }
+    public static ProgramScript compile(int id, String script) throws IOException {
+        return new ProgramScript(id, script, new CompletableFuture<>()); // TODO: Compile wasm module!
     }
 }

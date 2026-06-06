@@ -19,6 +19,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import java.lang.ref.Reference;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.LockSupport;
 
 @Mixin(Minecraft.class)
 public abstract class MinecraftMixin {
@@ -47,7 +49,7 @@ public abstract class MinecraftMixin {
 
         Thread.ofPlatform().daemon().name("LiveHelper Debugger Evaluation").start(() -> {
             while (true) {
-                Reference.reachabilityFence(null);
+                LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(20));
             }
         });
 

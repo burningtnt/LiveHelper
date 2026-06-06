@@ -16,6 +16,7 @@ import java.io.DataOutput;
 import java.io.IOException;
 import java.util.EnumMap;
 import java.util.Map;
+import java.util.Objects;
 
 @JsonAdapter(value = InputValue.Adapter.class)
 public sealed interface InputValue {
@@ -34,10 +35,15 @@ public sealed interface InputValue {
     record Number(
             @SerializedName("id") String id,
             @SerializedName("value") float value
-    ) implements F32Like {
+    ) implements F32Like, Validation {
         @Override
         public InputDeclaration.Type type() {
             return InputDeclaration.Type.NUMBER;
+        }
+
+        @Override
+        public void validate() {
+            Objects.requireNonNull(id, "id");
         }
 
         @Override
@@ -49,10 +55,16 @@ public sealed interface InputValue {
     record Chars(
             @SerializedName("id") String id,
             @SerializedName("value") String value
-    ) implements BufferLike {
+    ) implements BufferLike, Validation {
         @Override
         public InputDeclaration.Type type() {
             return InputDeclaration.Type.STRING;
+        }
+
+        @Override
+        public void validate() {
+            Objects.requireNonNull(id, "id");
+            Objects.requireNonNull(value, "value");
         }
 
         @Override
@@ -64,10 +76,16 @@ public sealed interface InputValue {
     record Pose(
             @SerializedName("id") String id,
             @SerializedName("value") PoseInstance value
-    ) implements BufferLike {
+    ) implements BufferLike, Validation {
         @Override
         public InputDeclaration.Type type() {
             return InputDeclaration.Type.POSE;
+        }
+
+        @Override
+        public void validate() {
+            Objects.requireNonNull(id, "id");
+            Objects.requireNonNull(value, "value");
         }
 
         public record PoseInstance(
@@ -78,7 +96,17 @@ public sealed interface InputValue {
                 @SerializedName("qy") float qy,
                 @SerializedName("qz") float qz,
                 @SerializedName("qw") float qw
-        ) {
+        ) implements Validation {
+            @Override
+            public void validate() {
+                Validation.requireReal(x, "x");
+                Validation.requireReal(y, "y");
+                Validation.requireReal(z, "z");
+                Validation.requireReal(qx, "qx");
+                Validation.requireReal(qy, "qy");
+                Validation.requireReal(qz, "qz");
+                Validation.requireReal(qw, "qw");
+            }
         }
 
         @Override

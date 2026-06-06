@@ -1,5 +1,13 @@
 package net.burningtnt.livehelper.components.storage;
 
+import com.google.common.base.CaseFormat;
+
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.RecordComponent;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
+
 public final class ComponentException extends Exception {
     private final Type type;
 
@@ -25,6 +33,24 @@ public final class ComponentException extends Exception {
         default ComponentException make(Throwable cause) {
             return new ComponentException(this, cause);
         }
+
+        default List<String> toRoute() {
+            Class<? extends Type> clazz = this.getClass();
+            RecordComponent[] components = clazz.getRecordComponents();
+            List<String> routes = new ArrayList<>(components.length + 1);
+
+            routes.add(CaseFormat.UPPER_CAMEL.to(CaseFormat.LOWER_UNDERSCORE, clazz.getSimpleName()));
+            for (RecordComponent component : components) {
+                Object v;
+                try {
+                    v = component.getAccessor().invoke(this);
+                } catch (IllegalAccessException | InvocationTargetException e) {
+                    throw new AssertionError(e);
+                }
+                routes.add(Objects.toString(v));
+            }
+            return routes;
+        }
     }
 
     public record IDNotFound(int id) implements Type {
@@ -43,5 +69,8 @@ public final class ComponentException extends Exception {
     }
 
     public record MissingEntry(int programID) implements Type {
+    }
+
+    public record NotCompiled(int programID) implements Type {
     }
 }

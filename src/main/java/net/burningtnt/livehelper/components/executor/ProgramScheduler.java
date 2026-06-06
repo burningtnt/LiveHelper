@@ -11,27 +11,21 @@ import net.burningtnt.livehelper.components.storage.ComponentException;
 import net.burningtnt.livehelper.components.storage.ComponentStorage;
 import net.burningtnt.livehelper.live.ActiveStream;
 import net.burningtnt.livehelper.live.ActiveStreamRenderer;
-import net.minecraft.client.Minecraft;
-import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
-import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
 
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 @EventBusSubscriber
 public final class ProgramScheduler {
-    private ProgramScheduler() {
-    }
+    private final ComponentStorage storage;
 
-    public static final ComponentStorage STORAGE = new ComponentStorage();
-
-    @SubscribeEvent
-    private static void on(FMLClientSetupEvent event) {
-        STORAGE.load().thenAcceptAsync(Runnable::run, Minecraft.getInstance());
+    public ProgramScheduler(ComponentStorage storage) {
+        this.storage = storage;
     }
 
     /* package-private */ sealed interface RenderInstruction {
@@ -43,26 +37,46 @@ public final class ProgramScheduler {
     }
 
     public sealed interface ManagerStatus {
-        record Running(ActiveStream stream) implements ManagerStatus {
+        record Running(ProgramScheduler instance, int managerID, ActiveStream stream) implements ManagerStatus {
+            public void stop() {
+                if (!instance.status.remove(managerID, this)) {
+                    throw new IllegalStateException();
+                }
+
+                ActiveStreamRenderer.deactivate(stream);
+            }
         }
 
-        record Failed(Exception exception) implements ManagerStatus {
+        record Failed(ProgramScheduler instance, int managerID, Exception exception) implements ManagerStatus {
+            public void forget() {
+                if (!instance.status.remove(managerID, this)) {
+                    throw new IllegalStateException();
+                }
+            }
+        }
+
+        record Nil() implements ManagerStatus {
+            public static final Nil INSTANCE = new Nil();
         }
     }
 
-    private static final Int2ObjectMap<ManagerStatus> STATUS = new Int2ObjectOpenHashMap<>();
+    private final Int2ObjectMap<ManagerStatus> status = new Int2ObjectOpenHashMap<>();
 
-    public static void activate(int managerID) throws ComponentException {
+    public ManagerStatus getStatus(int managerID) {
+        return Objects.requireNonNullElse(status.get(managerID), ManagerStatus.Nil.INSTANCE);
+    }
+
+    public void launch(int managerID) throws ComponentException {
         ActiveStream.Config config;
         ActiveStream stream;
         try {
-            Manager manager = STORAGE.managers.get(managerID);
+            Manager manager = storage.managers.get(managerID);
 
-            LinkedMachine managerProgram = new LinkedMachine(STORAGE, manager.program(), manager.inputs(), Program.Usage.MANAGER);
-            Int2ObjectMap<LinkedMachine> clipPrograms = new Int2ObjectOpenHashMap<>(manager.clips().size());
+            LinkedMachine managerProgram = new LinkedMachine(storage, manager.programID(), manager.inputs(), Program.Usage.MANAGER);
+            Int2ObjectMap<LinkedMachine> clipPrograms = new Int2ObjectOpenHashMap<>(manager.clips().length);
             for (int clipID : manager.clips()) {
-                Clip clip = STORAGE.clips.get(clipID);
-                if (clipPrograms.put(clipID, new LinkedMachine(STORAGE, clip.programID(), clip.inputs(), Program.Usage.CLIP)) != null) {
+                Clip clip = storage.clips.get(clipID);
+                if (clipPrograms.put(clipID, new LinkedMachine(storage, clip.programID(), clip.inputs(), Program.Usage.CLIP)) != null) {
                     throw new ComponentException.IDDuplicate(clipID).make();
                 }
             }
@@ -79,7 +93,7 @@ public final class ProgramScheduler {
                         steps.add(new RenderStep.Display(finalID));
                         return steps;
                     } catch (RuntimeException | ComponentException e) {
-                        STATUS.put(managerID, new ManagerStatus.Failed(e));
+                        status.put(managerID, new ManagerStatus.Failed(ProgramScheduler.this, managerID, e));
                         throw e instanceof RuntimeException re ? re : new RuntimeException(e);
                     }
                 }
@@ -129,15 +143,11 @@ public final class ProgramScheduler {
             };
         } catch (RuntimeException | ComponentException e) {
             ComponentException exception = new ComponentException.LinkageFailure(managerID).make(e);
-            STATUS.put(managerID, new ManagerStatus.Failed(exception));
+            status.put(managerID, new ManagerStatus.Failed(this, managerID, exception));
             throw exception;
         }
 
         ActiveStreamRenderer.activate(config, stream);
-        STATUS.put(managerID, new ManagerStatus.Running(stream));
-    }
-
-    public static Int2ObjectMap<ManagerStatus> getStatus() {
-        return STATUS;
+        status.put(managerID, new ManagerStatus.Running(this, managerID, stream));
     }
 }

@@ -42,7 +42,7 @@ neoForge {
     version = project.neo_version
 
     // This line is optional. Access Transformers are automatically detected
-     accessTransformers = project.files('src/main/resources/META-INF/accesstransformer.cfg')
+    accessTransformers = project.files('src/main/resources/META-INF/accesstransformer.cfg')
 
     // Default run configurations.
     // These can be tweaked, removed, or duplicated as needed.
@@ -133,6 +133,10 @@ dependencies {
 
     implementation "com.dylibso.chicory:runtime:1.7.5"
     implementation "com.dylibso.chicory:compiler:1.7.5"
+    implementation "io.jooby:jooby:4.5.1"
+    implementation("io.jooby:jooby-netty:4.5.1") {
+        exclude group: "io.netty"
+    }
 
 
     // For more info:

@@ -3,6 +3,7 @@ package net.burningtnt.livehelper.components.executor;
 import com.dylibso.chicory.runtime.ExportFunction;
 import com.dylibso.chicory.runtime.Instance;
 import com.dylibso.chicory.wasm.ChicoryException;
+import com.dylibso.chicory.wasm.WasmModule;
 import com.dylibso.chicory.wasm.types.MemoryLimits;
 import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
@@ -32,8 +33,13 @@ public final class LinkedMachine {
             throw new ComponentException.InvalidUsage(program.id()).make();
         }
 
+        WasmModule module = storage.scripts.get(programID).module().getNow(null);
+        if (module == null) {
+            throw new ComponentException.NotCompiled(program.id()).make();
+        }
+
         this.inputs = resolveInputs(program, inputs);
-        this.script = Instance.builder(storage.scripts.get(programID).module())
+        this.script = Instance.builder(module)
                 .withMemoryLimits(new MemoryLimits(4, 32, false))
 //                            .withMemoryFactory() TODO: Replace with LWJGL-based memory access to reduce runtime index validation overload
                 .withImportValues(LinkedMachineImports.create(this, usage))
