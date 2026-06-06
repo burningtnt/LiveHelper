@@ -1,14 +1,22 @@
 package net.burningtnt.livehelper.live;
 
+import com.mojang.blaze3d.ProjectionType;
+import com.mojang.blaze3d.buffers.GpuBufferSlice;
 import com.mojang.blaze3d.pipeline.MainTarget;
 import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.textures.FilterMode;
+import com.mojang.blaze3d.vertex.DefaultVertexFormat;
+import com.mojang.blaze3d.vertex.VertexFormat;
 import net.burningtnt.livehelper.MainScheduler;
+import net.burningtnt.livehelper.render.CachedMesh;
+import net.burningtnt.livehelper.render.LiveHelperRenderPipelines;
 import net.burningtnt.livehelper.spout.SpoutSender;
 import net.minecraft.client.Camera;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.GameRenderer;
+import net.minecraft.client.renderer.ProjectionMatrixBuffer;
 import net.minecraft.util.profiling.Profiler;
 import net.minecraft.util.profiling.ProfilerFiller;
 import net.minecraft.world.entity.Entity;
@@ -19,6 +27,7 @@ import org.joml.Matrix4f;
 import org.joml.Matrix4fc;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
+import org.joml.Vector4f;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -28,6 +37,7 @@ import java.lang.invoke.MethodType;
 import java.lang.invoke.VarHandle;
 import java.util.List;
 import java.util.Objects;
+import java.util.OptionalInt;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -38,7 +48,31 @@ import java.util.concurrent.TimeUnit;
 
     private static final MethodHandle SET_ROTATION, SET_POSITION, PREPARE_CULL_FRUSTUM, GET_VIEW_ROTATION_MATRIX, SETUP_PERSPECTIVE;
     private static final VarHandle INITIALIZED, DEPTH_FAR, FOV, HUD_FOV, CACHED_VIEW_ROT_MATRIX;
-
+    
+    protected static final ProjectionMatrixBuffer projMatCache = new ProjectionMatrixBuffer("post process");
+    private static CachedMesh cachedMesh;
+    private static int lastXSize;
+    private static int lastYSize;
+    
+    private static CachedMesh getBlitMesh(int xSize, int ySize){
+        if(cachedMesh == null || lastXSize != xSize || lastYSize != ySize){
+            lastXSize = xSize;
+            lastYSize = ySize;
+            if(cachedMesh != null) cachedMesh.close();
+            cachedMesh = createScreenQuad(xSize, ySize);
+        }
+        return cachedMesh;
+    }
+    
+    private static CachedMesh createScreenQuad(int xSize, int ySize){
+        return new CachedMesh("screen_blit", VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX, b -> {
+            b.addVertex(0.0f, 0.0f, 500.0f).setUv(0,0);
+            b.addVertex(xSize, 0.0f, 500.0f).setUv(1,0);
+            b.addVertex(xSize,  ySize, 500.0f).setUv(1,1);
+            b.addVertex(0.0f, ySize, 500.0f).setUv(0,1);
+        });
+    }
+    
     static {
         try {
             MethodHandles.Lookup lookup = MethodHandles.privateLookupIn(Camera.class, MethodHandles.lookup());
@@ -147,7 +181,26 @@ import java.util.concurrent.TimeUnit;
                 case ActiveStream.RenderStep.Mix(int left, int right, int target, float progress) -> {
                     MainTarget leftTarget = ensureTarget(left), rightTarget = ensureTarget(right), targetTarget = ensureTarget(target);
                     progress = Float.isNaN(progress) ? 0.5f : Math.clamp(progress, 0f, 1f);
-                    // TODO: 将 leftTarget 和 rightTarget 按照 progress 指定的比例混合，输出到 targetTarget。
+                    assert leftTarget.getColorTexture() != null && rightTarget.getColorTexture() != null && targetTarget.getColorTexture() != null;
+                    RenderSystem.backupProjectionMatrix();
+                    var xSize = targetTarget.width;
+                    var ySize = targetTarget.height;
+                    var projMat = new Matrix4f().setOrtho(0,xSize,0,ySize,0.1f,1000f,false);
+                    var mesh = getBlitMesh(xSize,ySize);
+                    GpuBufferSlice dynamicTransforms = RenderSystem.getDynamicUniforms()
+                            .writeTransform(new Matrix4f(), new Vector4f(1.0F, 1.0F, 1.0F, progress), new Vector3f(), new Matrix4f());
+                    RenderSystem.setProjectionMatrix(projMatCache.getBuffer(projMat), ProjectionType.ORTHOGRAPHIC);
+                    try(var renderpass = RenderSystem.getDevice().createCommandEncoder().createRenderPass(() -> "mix", Objects.requireNonNull(targetTarget.getColorTextureView()), OptionalInt.of(0))){
+                        RenderSystem.bindDefaultUniforms(renderpass);
+                        renderpass.setUniform("DynamicTransforms", dynamicTransforms);
+                        renderpass.bindTexture("input0", leftTarget.getColorTextureView(), RenderSystem.getSamplerCache().getClampToEdge(FilterMode.NEAREST));
+                        renderpass.bindTexture("input1", rightTarget.getColorTextureView(), RenderSystem.getSamplerCache().getClampToEdge(FilterMode.NEAREST));
+                        renderpass.setPipeline(LiveHelperRenderPipelines.MIX);
+                        renderpass.setVertexBuffer(0, mesh.getVertexBuffer());
+                        renderpass.setIndexBuffer(mesh.getIndexBuffer(),mesh.getIndexType());
+                        renderpass.drawIndexed(0,0, mesh.getIndexCount(), 1);
+                    }
+                    RenderSystem.restoreProjectionMatrix();
                 }
                 case ActiveStream.RenderStep.Display(int target) -> {
                     SpoutRenderer.sendTexture(sender, Objects.requireNonNull(ensureTarget(target).getColorTextureView()));
