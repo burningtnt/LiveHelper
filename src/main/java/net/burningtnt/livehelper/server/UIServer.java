@@ -4,6 +4,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import io.jooby.ExecutionMode;
 import io.jooby.Jooby;
+import io.jooby.Server;
 import io.jooby.StatusCode;
 import io.jooby.exception.StatusCodeException;
 import io.jooby.handler.AssetSource;
@@ -17,17 +18,22 @@ import net.burningtnt.livehelper.server.components.ProgramScript;
 import net.burningtnt.livehelper.server.components.storage.ComponentException;
 import net.burningtnt.livehelper.server.components.storage.ComponentStorage;
 import net.burningtnt.livehelper.server.executor.ProgramScheduler;
+import net.minecraft.ChatFormatting;
+import net.minecraft.network.chat.ClickEvent;
+import net.minecraft.network.chat.Component;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
 import net.neoforged.fml.loading.FMLEnvironment;
 import net.neoforged.fml.loading.FMLLoader;
+import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.core.config.Configurator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.net.URI;
 import java.nio.file.Path;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
@@ -45,14 +51,39 @@ public final class UIServer extends Jooby {
     }
 
     static void main() {
-        INSTANCE = new UIServer();
-        runApp(new String[0], new NettyServerImpl(), ExecutionMode.EVENT_LOOP, () -> INSTANCE);
+        try {
+            UIServer application = new UIServer();
+            Server server = new NettyServerImpl().setOptions(application.getServerOptions());
+            createApp(server, ExecutionMode.EVENT_LOOP, () -> application);
+            server.start(application);
+
+            INSTANCE = application;
+        } catch (Exception e) {
+            LOGGER.warn("Cannot launch LiveHelper UI", e);
+        }
+    }
+
+    @SubscribeEvent
+    private static void on(ClientPlayerNetworkEvent.LoggingIn event) {
+        if (INSTANCE == null) {
+            return;
+        }
+
+        String url = "http://localhost:" + INSTANCE.getServerOptions().getPort() + "/";
+        event.getPlayer().sendSystemMessage(Component.translatable(
+                "live_helper.server_ready",
+                Component.literal(url).withStyle(s -> s
+                        .withClickEvent(new ClickEvent.OpenUrl(URI.create(url)))
+                        .withColor(ChatFormatting.YELLOW)
+                        .withUnderlined(true)
+                )
+        ));
     }
 
     private UIServer() {
         Configurator.setLevel(UIServer.class, Level.OFF);
 
-        getServerOptions().setPort(8000);
+        getServerOptions().setPort(23512);
         setWorker(Executors.newSingleThreadExecutor(Thread.ofPlatform().daemon().name("LiveHelper WebServer Router [DEFAULT]").factory()));
         setExecutionMode(ExecutionMode.EVENT_LOOP);
         install(new GsonModule(ComponentStorage.GSON));

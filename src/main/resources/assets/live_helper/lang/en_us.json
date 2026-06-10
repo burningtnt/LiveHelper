@@ -1,4 +1,5 @@
 {
   "live_helper.pose_request": "Press [%1$s] to set, ESC to cancel.",
-  "live_helper.pose_request.near_expire": "Press [%1$s] in %2$d to set, ESC to cancel."
+  "live_helper.pose_request.near_expire": "Press [%1$s] in %2$d to set, ESC to cancel.",
+  "live_helper.server_ready": "[LiveHelper] Visit %1$s to configure."
 }

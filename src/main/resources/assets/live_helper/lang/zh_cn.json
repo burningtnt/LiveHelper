@@ -1,4 +1,5 @@
 {
   "live_helper.pose_request": "按 [%1$s] 设置, ESC 取消",
-  "live_helper.pose_request.near_expire": "按 [%1$s] 设置, ESC 取消 (剩余 %2$s 秒）"
+  "live_helper.pose_request.near_expire": "按 [%1$s] 设置, ESC 取消 (剩余 %2$s 秒）",
+  "live_helper.server_ready": "[LiveHelper] 访问 %1$s 配置"
 }
