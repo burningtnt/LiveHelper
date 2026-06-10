@@ -1,10 +1,11 @@
-package net.burningtnt.livehelper.live;
+package net.burningtnt.livehelper.api;
 
 import com.mojang.blaze3d.pipeline.MainTarget;
 import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.blaze3d.systems.RenderSystem;
 import net.burningtnt.livehelper.MainScheduler;
-import net.burningtnt.livehelper.spout.SpoutSender;
+import net.burningtnt.livehelper.util.AngleConvert;
+import net.burningtnt.livehelper.util.spout.SpoutSender;
 import net.minecraft.client.Camera;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
@@ -14,6 +15,7 @@ import net.minecraft.util.profiling.ProfilerFiller;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.client.ClientHooks;
+import org.jetbrains.annotations.Nullable;
 import org.joml.Matrix4f;
 import org.joml.Matrix4fc;
 import org.joml.Quaternionf;
@@ -25,14 +27,15 @@ import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.lang.invoke.VarHandle;
+import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
-/* package-private */ final class ScheduledActiveStream {
-    private static final Logger LOGGER = LoggerFactory.getLogger(ScheduledActiveStream.class);
+/* package-private */ final class ActiveStreamInstanceImpl {
+    private static final Logger LOGGER = LoggerFactory.getLogger(ActiveStreamInstanceImpl.class);
 
     private static final MethodHandle SET_ROTATION, SET_POSITION, PREPARE_CULL_FRUSTUM, GET_VIEW_ROTATION_MATRIX, SETUP_PERSPECTIVE;
     private static final VarHandle INITIALIZED, DEPTH_FAR, FOV, HUD_FOV, CACHED_VIEW_ROT_MATRIX;
@@ -59,80 +62,113 @@ import java.util.concurrent.TimeUnit;
     private final ActiveStream.Config config;
     private final ActiveStream stream;
     private final Camera camera;
-    private final MainTarget renderTarget;
+    private final MainTarget[] renderTargets;
     private final ExecutorService executor;
     private final SpoutSender sender;
-    private final MainScheduler.Scheduler renderScheduler;
+    private final long startNs = System.nanoTime();
 
-    ScheduledActiveStream(ActiveStream.Config config, ActiveStream stream, boolean useStencil) {
+    private long futureNs;
+    private Future<@Nullable List<ActiveStream.RenderStep>> future;
+    private long lastPerformanceWarning = -1;
+    private boolean stopped;
+
+    public ActiveStreamInstanceImpl(ActiveStream.Config config, ActiveStream stream, boolean useStencil) {
         this.config = config;
         this.stream = stream;
         this.camera = new Camera();
-        this.renderTarget = new MainTarget(config.width(), config.height(), useStencil);
-        this.executor = Executors.newSingleThreadExecutor(Thread.ofPlatform().name("LiveHelper Worker for " + config.name()).daemon().factory());
+        this.renderTargets = new MainTarget[ActiveStream.RenderStep.MAX_BUFFER];
+        this.renderTargets[0] = new MainTarget(config.width(), config.height(), useStencil);
+        this.executor = Executors.newSingleThreadExecutor(Thread.ofPlatform().name("LiveHelper Camera Worker for " + config.name()).daemon().factory());
         this.sender = new SpoutSender(config.name());
-        this.renderScheduler = new MainScheduler.Scheduler() {
-            private final long startNs = System.nanoTime();
-            private long futureNs;
-            private Future<ActiveStream.RenderRequest> future;
 
-            private void requestFrame(long durationNs) {
-                futureNs = System.nanoTime();
-                future = executor.submit(() -> stream.computeFrame(durationNs));
-            }
+        requestFrame(0);
 
-            {
-                requestFrame(0);
-                submitTask(System.nanoTime(), new MainScheduler.ExecutableTask() {
-                    @Override
-                    public void run(boolean isOutOfMemoryRecovery, long taskNs) {
-                        if (stopped()) {
-                            return;
-                        }
+        MainScheduler.submitTask(System.nanoTime(), new MainScheduler.ExecutableTask() {
+            @Override
+            public void run(boolean isOutOfMemoryRecovery, long taskNs) {
+                if (stopped) {
+                    return;
+                }
 
-                        long frameNs = Math.max(TimeUnit.MILLISECONDS.toNanos(5), TimeUnit.SECONDS.toNanos(1) / config.fps());
+                FrameBufferWorkaround.ensureSize(config.width(), config.height());
 
-                        switch (future.state()) {
-                            case SUCCESS -> {
-                                ActiveStream.RenderRequest frame = future.resultNow();
-                                requestFrame(taskNs + frameNs - startNs);
-                                if (frame != null) {
-                                    render(isOutOfMemoryRecovery, frame);
-                                }
-                            }
-                            case RUNNING -> {
-                                if (taskNs - futureNs >= 2 * frameNs) {
-                                    LOGGER.warn("Camera {} can't keep up! Your program is too slow!", config.name());
-                                }
-                            }
-                            case CANCELLED -> stop();
-                            case FAILED -> {
-                                LOGGER.error("Camera {} frame computing failed.", config.name(), future.exceptionNow());
-                                stop();
-                            }
-                        }
+                long frameNs = Math.max(TimeUnit.MILLISECONDS.toNanos(5), TimeUnit.SECONDS.toNanos(1) / config.fps());
+                long nextFrameNs = Math.max(taskNs + frameNs, System.nanoTime());
 
-                        if (!stopped()) {
-                            submitTask(taskNs + frameNs, this);
+                switch (future.state()) {
+                    case SUCCESS -> {
+                        List<ActiveStream.RenderStep> steps = future.resultNow();
+                        requestFrame(nextFrameNs - startNs);
+                        if (steps != null) {
+                            executeSteps(isOutOfMemoryRecovery, steps);
                         }
                     }
-                });
-            }
+                    case RUNNING -> {
+                        if (taskNs - futureNs >= 2 * frameNs && System.currentTimeMillis() - lastPerformanceWarning >= TimeUnit.SECONDS.toMillis(5)) {
+                            LOGGER.warn("Camera {} can't keep up! Your program is too slow!", config.name());
+                            lastPerformanceWarning = System.currentTimeMillis();
+                        }
+                    }
+                    case CANCELLED -> {
+                        ActiveStream.deactivate(stream);
+                    }
+                    case FAILED -> {
+                        LOGGER.error("Camera {} frame computing failed.", config.name(), future.exceptionNow());
+                        ActiveStream.deactivate(stream);
+                    }
+                }
 
-            @Override
-            protected void scheduleInternal(MainScheduler.ExecutableTask task) {
-                throw new UnsupportedOperationException("Cannot schedule new tasks.");
+                if (!stopped) {
+                    MainScheduler.submitTask(nextFrameNs, this);
+                }
             }
-
-            @Override
-            public void stop() {
-                super.stop();
-                future.cancel(true);
-            }
-        };
+        });
     }
 
-    private void render(boolean isOutOfMemoryRecovery, ActiveStream.RenderRequest frame) {
+    private void requestFrame(long durationNs) {
+        futureNs = System.nanoTime();
+        future = executor.submit(() -> stream.computeFrame(durationNs));
+    }
+
+    private void executeSteps(boolean isOutOfMemoryRecovery, List<ActiveStream.RenderStep> steps) {
+        for (int i = 0; i < steps.size(); i++) {
+            switch (steps.get(i)) {
+                case ActiveStream.RenderStep.Render(ActiveStream.FrameRequest request, int target) -> {
+                    render(request, ensureTarget(target), isOutOfMemoryRecovery);
+                }
+                case ActiveStream.RenderStep.Mix(int left, int right, int target, float progress) -> {
+                    MainTarget leftTarget = ensureTarget(left), rightTarget = ensureTarget(right), targetTarget = ensureTarget(target);
+                    progress = Float.isNaN(progress) ? 0.5f : Math.clamp(progress, 0f, 1f);
+                    // TODO: 将 leftTarget 和 rightTarget 按照 progress 指定的比例混合，输出到 targetTarget。
+                }
+                case ActiveStream.RenderStep.Display(int target) -> {
+                    SpoutRenderer.blitSend(sender, Objects.requireNonNull(ensureTarget(target).getColorTextureView()));
+
+                    if (i != steps.size() - 1) {
+                        throw new IllegalArgumentException("RenderStep.Display must be the last node.");
+                    }
+                    return;
+                }
+            }
+        }
+
+        throw new IllegalArgumentException("RenderStep must be finished by a RenderStep.Display");
+    }
+
+    private MainTarget ensureTarget(int index) {
+        if (index < 0 || index >= renderTargets.length) {
+            throw new IllegalArgumentException("Unknown target: " + index);
+        }
+
+        MainTarget target = renderTargets[index];
+        if (target == null) {
+            MainTarget first = renderTargets[0];
+            target = renderTargets[index] = new MainTarget(first.width, first.height, first.useStencil);
+        }
+        return target;
+    }
+
+    private void render(ActiveStream.FrameRequest frame, MainTarget renderTarget, boolean isOutOfMemoryRecovery) {
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.level == null || minecraft.player == null) {
             return;
@@ -142,10 +178,10 @@ import java.util.concurrent.TimeUnit;
         Camera previousCamera = minecraft.gameRenderer.mainCamera;
         boolean previousHideGui = minecraft.options.hideGui;
         try {
-            setupInternal(minecraft, frame);
-            ActiveStreamRenderer.runWith(
+            setupInternal(frame, renderTarget);
+            ActiveStreamImpl.runWith(
                     this, frame,
-                    () -> renderInternal(minecraft, isOutOfMemoryRecovery, minecraft.gameRenderer, minecraft.getDeltaTracker())
+                    () -> renderInternal(renderTarget, isOutOfMemoryRecovery)
             );
         } finally {
             minecraft.mainRenderTarget = previousRenderTarget;
@@ -154,13 +190,13 @@ import java.util.concurrent.TimeUnit;
         }
     }
 
-    private void setupInternal(Minecraft minecraft, ActiveStream.RenderRequest frame) {
+    private void setupInternal(ActiveStream.FrameRequest frame, MainTarget renderTarget) {
+        Minecraft minecraft = Minecraft.getInstance();
         minecraft.mainRenderTarget = renderTarget;
         minecraft.gameRenderer.mainCamera = camera;
-        minecraft.options.hideGui = !config.renderHUD();
+        minecraft.options.hideGui = true;
 
-        Vector3f angles = new Vector3f();
-        new Quaternionf(frame.qx(), frame.qy(), frame.qz(), frame.qw()).getEulerAnglesXYZ(angles);
+        Vector3f angles = AngleConvert.convert(new Quaternionf(frame.qx(), frame.qy(), frame.qz(), frame.qw()), new Vector3f());
         camera.setLevel(minecraft.level);
         camera.setEntity(Objects.requireNonNull(minecraft.player));
 
@@ -177,7 +213,7 @@ import java.util.concurrent.TimeUnit;
             FOV.set(camera, frame.fov());
             HUD_FOV.set(camera, frame.fov());
             SET_POSITION.invokeExact(camera, frame.x(), frame.y(), frame.z());
-            SET_ROTATION.invokeExact(camera, (float) Math.toDegrees(angles.y), (float) Math.toDegrees(angles.x), (float) Math.toDegrees(angles.z));
+            SET_ROTATION.invokeExact(camera, angles.y, angles.z, angles.z);
             INITIALIZED.set(camera, true);
             PREPARE_CULL_FRUSTUM.invokeExact(
                     camera,
@@ -193,8 +229,12 @@ import java.util.concurrent.TimeUnit;
         }
     }
 
-    private void renderInternal(Minecraft minecraft, boolean isOutOfMemoryRecovery, GameRenderer gameRenderer, DeltaTracker deltaTracker) {
+    private void renderInternal(MainTarget renderTarget, boolean isOutOfMemoryRecovery) {
+        Minecraft minecraft = Minecraft.getInstance();
+        GameRenderer gameRenderer = minecraft.gameRenderer;
+        DeltaTracker deltaTracker = minecraft.getDeltaTracker();
         ProfilerFiller profiler = Profiler.get();
+
         profiler.push("spout");
 
         profiler.push("update");
@@ -222,6 +262,10 @@ import java.util.concurrent.TimeUnit;
     }
 
     public void tick() {
+        if (stopped) {
+            throw new IllegalStateException(this + "has been stopped!");
+        }
+
         Entity entity = camera.entity();
         if (entity != null) {
             camera.attributeProbe().tick(entity.level(), entity.position());
@@ -231,10 +275,16 @@ import java.util.concurrent.TimeUnit;
     }
 
     public void close() {
-        renderTarget.destroyBuffers();
+        stopped = true;
+
+        for (MainTarget target : renderTargets) {
+            if (target != null) {
+                target.destroyBuffers();
+            }
+        }
         sender.close();
         executor.shutdownNow();
-        renderScheduler.stop();
+        future.cancel(true);
     }
 
     public ActiveStream.Config config() {
@@ -243,9 +293,5 @@ import java.util.concurrent.TimeUnit;
 
     public ActiveStream stream() {
         return stream;
-    }
-
-    public SpoutSender sender() {
-        return sender;
     }
 }

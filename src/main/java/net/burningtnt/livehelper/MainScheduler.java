@@ -5,66 +5,10 @@ import org.jspecify.annotations.NonNull;
 import java.util.PriorityQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.LockSupport;
-import java.util.function.IntSupplier;
 
 public final class MainScheduler {
     public interface ExecutableTask {
         void run(boolean isOutOfMemoryRecovery, long startNs);
-    }
-
-    public static abstract class Scheduler {
-        private boolean stopped;
-
-        public final void schedule(ExecutableTask task) {
-            if (this.stopped) {
-                throw new IllegalArgumentException("Scheduler has stopped.");
-            }
-
-            scheduleInternal(task);
-        }
-
-        protected final void submitTask(long nano, ExecutableTask task) {
-            if (this.stopped) {
-                throw new IllegalArgumentException("Scheduler has stopped.");
-            }
-
-            MainScheduler.submitDirect(nano, task);
-        }
-
-        protected abstract void scheduleInternal(ExecutableTask task);
-
-        protected final boolean stopped() {
-            return this.stopped;
-        }
-
-        public void stop() {
-            this.stopped = true;
-        }
-    }
-
-    public static Scheduler ofFrame(IntSupplier frameRateSupplier) {
-        return new Scheduler() {
-            @Override
-            protected void scheduleInternal(ExecutableTask task) {
-                submitTask(System.nanoTime(), new ExecutableTask() {
-                    @Override
-                    public void run(boolean isOutOfMemoryRecovery, long startNs) {
-                        if (stopped()) {
-                            return;
-                        }
-
-                        task.run(isOutOfMemoryRecovery, startNs);
-
-                        int frameRate = frameRateSupplier.getAsInt();
-                        if (frameRate < 260) {
-                            submitTask(startNs + TimeUnit.SECONDS.toNanos(1) / frameRate, this);
-                        } else {
-                            submitTask(System.nanoTime(), this);
-                        }
-                    }
-                });
-            }
-        };
     }
 
     // FIXME: May create massive objects, causing GC problems.
@@ -77,8 +21,8 @@ public final class MainScheduler {
 
     private static final PriorityQueue<Task> QUEUE = new PriorityQueue<>(16);
 
-    private static void submitDirect(long nano, ExecutableTask task) {
-        QUEUE.add(new Task(nano, task));
+    public static void submitTask(long nano, ExecutableTask task) {
+        QUEUE.add(new Task(Math.max(System.nanoTime(), nano), task));
     }
 
     public static void tick(boolean isOutOfMemoryRecovery) {

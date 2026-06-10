@@ -2,13 +2,9 @@ package net.burningtnt.livehelper.mixin;
 
 import com.llamalad7.mixinextras.injector.v2.WrapWithCondition;
 import net.burningtnt.livehelper.MainScheduler;
-import net.burningtnt.livehelper.live.ActiveStream;
-import net.burningtnt.livehelper.live.ActiveStreamRenderer;
+import net.burningtnt.livehelper.api.ActiveStreamImpl;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.renderer.GameRenderer;
-import net.minecraft.world.phys.Vec3;
-import org.joml.Quaternionf;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -16,6 +12,8 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+
+import java.util.concurrent.TimeUnit;
 
 @Mixin(Minecraft.class)
 public abstract class MinecraftMixin {
@@ -39,26 +37,19 @@ public abstract class MinecraftMixin {
 
     @Inject(method = "run", at = @At("HEAD"))
     private void beforeRun(CallbackInfo ci) {
-        MainScheduler.ofFrame(() -> ActiveStreamRenderer.hasActive() ? 15 : this.gameRenderer.getGameRenderState().framerateLimit)
-                .schedule((isOutOfMemoryRecovery, _) -> runTick(!isOutOfMemoryRecovery));
+        MainScheduler.submitTask(System.nanoTime(), new MainScheduler.ExecutableTask() {
+            @Override
+            public void run(boolean isOutOfMemoryRecovery, long startNs) {
+                runTick(!isOutOfMemoryRecovery);
 
-        ActiveStreamRenderer.activate(
-                new ActiveStream.Config("ABOVE", 854, 480, 30, 2, false, false),
-                _ -> {
-                    LocalPlayer player = Minecraft.getInstance().player;
-                    if (player == null) {
-                        return null;
-                    }
-
-                    Vec3 position = player.position();
-                    Quaternionf rotation = new Quaternionf()
-                            .rotateX(-(float) (0.5 * Math.PI));
-                    return new ActiveStream.RenderRequest(
-                            position.x + 16, position.y + 10, position.z + 16,
-                            rotation.x, rotation.y, rotation.z, rotation.w,
-                            80
-                    );
-                });
+                int frameRate = ActiveStreamImpl.hasActive() ? 15 : MinecraftMixin.this.gameRenderer.getGameRenderState().framerateLimit;
+                if (frameRate < 260) {
+                    MainScheduler.submitTask(startNs + TimeUnit.SECONDS.toNanos(1) / frameRate, this);
+                } else {
+                    MainScheduler.submitTask(System.nanoTime(), this);
+                }
+            }
+        });
     }
 
     @Redirect(

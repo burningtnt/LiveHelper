@@ -1,4 +1,4 @@
-package net.burningtnt.livehelper.spout;
+package net.burningtnt.livehelper.util.spout;
 
 import java.lang.foreign.MemorySegment;
 import java.lang.ref.Cleaner;

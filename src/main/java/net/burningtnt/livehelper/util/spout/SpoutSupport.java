@@ -1,4 +1,4 @@
-package net.burningtnt.livehelper.spout;
+package net.burningtnt.livehelper.util.spout;
 
 import oshi.PlatformEnum;
 import oshi.SystemInfo;

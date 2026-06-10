@@ -1,10 +1,14 @@
 package net.burningtnt.livehelper.mixin;
 
 import com.llamalad7.mixinextras.injector.v2.WrapWithCondition;
-import net.burningtnt.livehelper.live.ActiveStreamRenderer;
+import com.llamalad7.mixinextras.injector.wrapmethod.WrapMethod;
+import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
+import net.burningtnt.livehelper.api.ActiveStreamImpl;
 import net.minecraft.client.DeltaTracker;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.client.renderer.state.GameRenderState;
+import net.minecraft.client.renderer.state.WindowRenderState;
 import net.minecraft.client.renderer.state.level.CameraRenderState;
 import org.joml.Matrix4fc;
 import org.spongepowered.asm.mixin.Final;
@@ -18,6 +22,10 @@ public class GameRendererMixin {
     @Final
     private GameRenderState gameRenderState;
 
+    @Shadow
+    @Final
+    private Minecraft minecraft;
+
     @WrapWithCondition(
             method = "extract",
             at = @At(
@@ -26,13 +34,13 @@ public class GameRendererMixin {
             )
     )
     private boolean beforeExtractGUI(GameRenderer gameRenderer, DeltaTracker deltaTracker, boolean shouldRenderLevel, boolean resourcesLoaded) {
-        ActiveStreamRenderer.ActiveInstance instance = ActiveStreamRenderer.getActive();
-        if (instance != null && !instance.config().renderHUD()) {
-            this.gameRenderState.guiRenderState.reset();
-            return false;
+        ActiveStreamImpl.ActiveInstance instance = ActiveStreamImpl.getActive();
+        if (instance == null) {
+            return true;
         }
 
-        return true;
+        this.gameRenderState.guiRenderState.reset();
+        return false;
     }
 
     @WrapWithCondition(
@@ -43,7 +51,30 @@ public class GameRendererMixin {
             )
     )
     private boolean beforeRenderHand(GameRenderer gameRenderer, CameraRenderState cameraState, float deltaPartialTick, Matrix4fc modelViewMatrix) {
-        ActiveStreamRenderer.ActiveInstance instance = ActiveStreamRenderer.getActive();
-        return instance == null || instance.config().renderHand();
+        ActiveStreamImpl.ActiveInstance instance = ActiveStreamImpl.getActive();
+        return instance == null;
+    }
+
+    @WrapMethod(method = "extractWindow")
+    private void onExtractWindow(Operation<Void> original) {
+        if (!ActiveStreamImpl.hasActive()) {
+            original.call();
+            return;
+        }
+
+        WindowRenderState windowState = this.gameRenderState.windowRenderState;
+
+        ActiveStreamImpl.ActiveInstance instance = ActiveStreamImpl.getActive();
+        if (instance == null) {
+            original.call();
+        } else {
+            windowState.width = instance.config().width();
+            windowState.height = instance.config().height();
+            windowState.guiScale = this.minecraft.getWindow().getGuiScale();
+            windowState.appropriateLineWidth = Math.max(2.5F, instance.config().width() / 1920.0F * 2.5F);
+            windowState.isMinimized = false;
+        }
+
+        windowState.isResized = true;
     }
 }
