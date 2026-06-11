@@ -1,7 +1,10 @@
 import type { Manager, ManagerStatus } from "~/api/schema";
 import AddIcon from "@mui/icons-material/Add";
+import AddCircleOutline from "@mui/icons-material/AddCircleOutline";
 import DeleteIcon from "@mui/icons-material/Delete";
+import DragIndicator from "@mui/icons-material/DragIndicator";
 import EditIcon from "@mui/icons-material/Edit";
+import HighlightOff from "@mui/icons-material/HighlightOff";
 import PlayArrow from "@mui/icons-material/PlayArrow";
 import Stop from "@mui/icons-material/Stop";
 import Box from "@mui/material/Box";
@@ -18,11 +21,30 @@ import TextField from "@mui/material/TextField";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
+import {
+  DndContext,
+  DragOverlay,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  useDraggable,
+  useDroppable,
+  type DragEndEvent,
+  type DragStartEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+  arrayMove,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import {
   clipsQueryKey,
   createManager,
@@ -125,7 +147,15 @@ export default function ManagerRoute() {
   const [clipSelectManager, setClipSelectManager] = useState<Manager | null>(
     null,
   );
-  const [selectedClipIds, setSelectedClipIds] = useState<number[]>([]);
+  const uidRef = useRef(0);
+  const [clipSequence, setClipSequence] = useState<
+    { uid: string; clipId: number }[]
+  >([]);
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: 5 },
+    }),
+  );
 
   // ── Derived values ────────────────────────────────────────
   const nextId = useMemo(() => {
@@ -297,19 +327,82 @@ export default function ManagerRoute() {
   };
 
   const openClipSelect = (mgr: Manager) => {
-    const validClipIds = clips.map((c) => c.id);
-    const filtered = mgr.clips.filter((id) => validClipIds.includes(id));
+    const validClipIds = new Set(clips.map((c) => c.id));
+    const seq = mgr.clips
+      .filter((id) => validClipIds.has(id))
+      .map((clipId) => ({
+        uid: `seq-${uidRef.current++}`,
+        clipId,
+      }));
     setClipSelectManager(mgr);
-    setSelectedClipIds(filtered);
+    setClipSequence(seq);
     setClipSelectOpen(true);
   };
 
-  const toggleClipSelection = (clipId: number) => {
-    setSelectedClipIds((prev) =>
-      prev.includes(clipId)
-        ? prev.filter((id) => id !== clipId)
-        : [...prev, clipId],
-    );
+  const addToSequence = (clipId: number) => {
+    setClipSequence((prev) => [
+      ...prev,
+      { uid: `seq-${uidRef.current++}`, clipId },
+    ]);
+  };
+
+  const removeFromSequence = (index: number) => {
+    setClipSequence((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const [activeDragClip, setActiveDragClip] = useState<{
+    clipId: number;
+    name: string;
+  } | null>(null);
+
+  const handleDragStart = (event: DragStartEvent) => {
+    const id = String(event.active.id);
+    if (id.startsWith("available-")) {
+      const clipId = Number(id.slice("available-".length));
+      const clip = clips.find((c) => c.id === clipId);
+      if (clip) {
+        setActiveDragClip({ clipId: clip.id, name: clip.name });
+      }
+    }
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    setActiveDragClip(null);
+    if (!over) return;
+
+    const activeId = String(active.id);
+
+    // Dragging from available clips
+    if (activeId.startsWith("available-")) {
+      const clipId = Number(activeId.slice("available-".length));
+      const overId = String(over.id);
+
+      if (overId === "sequence-droppable") {
+        // Dropped on the empty sequence area → append to end
+        addToSequence(clipId);
+      } else if (overId.startsWith("seq-")) {
+        // Dropped on a specific position in the sequence → insert there
+        setClipSequence((prev) => {
+          const insertIndex = prev.findIndex((item) => item.uid === overId);
+          if (insertIndex < 0) return prev;
+          const newItem = { uid: `seq-${uidRef.current++}`, clipId };
+          const copy = [...prev];
+          copy.splice(insertIndex, 0, newItem);
+          return copy;
+        });
+      }
+      return;
+    }
+
+    // Reorder within sequence
+    if (active.id === over.id) return;
+    setClipSequence((prev) => {
+      const oldIndex = prev.findIndex((item) => item.uid === activeId);
+      const newIndex = prev.findIndex((item) => item.uid === String(over.id));
+      if (oldIndex < 0 || newIndex < 0) return prev;
+      return arrayMove(prev, oldIndex, newIndex);
+    });
   };
 
   const handleClipSelectConfirm = () => {
@@ -318,7 +411,10 @@ export default function ManagerRoute() {
     }
     updateMut.mutate({
       id: clipSelectManager.id,
-      data: { ...clipSelectManager, clips: selectedClipIds },
+      data: {
+        ...clipSelectManager,
+        clips: clipSequence.map((item) => item.clipId),
+      },
     });
     setClipSelectOpen(false);
     setClipSelectManager(null);
@@ -648,68 +744,260 @@ export default function ManagerRoute() {
         fullWidth
       >
         <DialogTitle>选择分镜头 — {clipSelectManager?.name ?? ""}</DialogTitle>
-        <DialogContent
-          className="overflow-y-auto pt-2!"
-          sx={{ minHeight: 300 }}
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
         >
-          {clips.length === 0 && (
-            <Typography variant="body2" color="text.secondary">
-              暂无可用分镜头
-            </Typography>
-          )}
-          {clips.length > 0 && (
-            <Box
-              className="grid gap-2"
-              sx={{
-                gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
-              }}
-            >
-              {[...clips]
-                .sort((a, b) => a.id - b.id)
-                .map((clip) => {
-                  const isSelected = selectedClipIds.includes(clip.id);
-                  return (
-                    <Card
-                      key={clip.id}
-                      className={`
-                        cursor-pointer transition-shadow
-                        hover:shadow-md
-                        ${isSelected ? "shadow-md ring-2 ring-blue-500" : ""}
-                      `}
-                      onClick={() => toggleClipSelection(clip.id)}
-                    >
-                      <Box className="px-3 py-2">
-                        <Box className="flex items-center gap-1">
-                          <Typography
-                            variant="body2"
-                            noWrap
-                            className="min-w-0 flex-1 font-medium"
-                          >
-                            {clip.name}
-                          </Typography>
-                        </Box>
-                        <Typography
-                          variant="caption"
-                          color="text.secondary"
-                          className="mt-0.5 line-clamp-1 block"
-                        >
-                          {clip.description || "暂无描述"}
-                        </Typography>
-                      </Box>
-                    </Card>
-                  );
-                })}
+          <DialogContent className="space-y-4 pt-2!" sx={{ minHeight: 400 }}>
+            {/* ── Current sequence ─────────────────────────── */}
+            <Box>
+              <Typography
+                variant="subtitle2"
+                color="text.secondary"
+                className="mb-1 font-bold"
+              >
+                当前序列（拖拽排序）
+              </Typography>
+              {clipSequence.length === 0 && (
+                <SequenceDroppable />
+              )}
+              {clipSequence.length > 0 && (
+                <SortableContext
+                  items={clipSequence.map((item) => item.uid)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  <Box className="flex flex-col gap-1">
+                    {clipSequence.map((item, index) => (
+                      <SortableClipItem
+                        key={item.uid}
+                        uid={item.uid}
+                        index={index}
+                        clip={clips.find((c) => c.id === item.clipId)}
+                        onRemove={() => removeFromSequence(index)}
+                      />
+                    ))}
+                  </Box>
+                </SortableContext>
+              )}
             </Box>
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setClipSelectOpen(false)}>取消</Button>
-          <Button onClick={handleClipSelectConfirm} variant="contained">
-            确认
-          </Button>
-        </DialogActions>
+
+            {/* divider */}
+            <Box className="border-t border-gray-200 dark:border-gray-700" />
+
+            {/* ── Available clips ──────────────────────────── */}
+            <Box>
+              <Typography
+                variant="subtitle2"
+                color="text.secondary"
+                className="mb-1 font-bold"
+              >
+                可用分镜头（点击 + 追加到末尾，或拖入上方序列）
+              </Typography>
+              {clips.length === 0 && (
+                <Typography variant="body2" color="text.secondary">
+                  暂无可用分镜头
+                </Typography>
+              )}
+              {clips.length > 0 && (
+                <Box
+                  className="grid gap-2"
+                  sx={{
+                    gridTemplateColumns:
+                      "repeat(auto-fill, minmax(180px, 1fr))",
+                  }}
+                >
+                  {[...clips]
+                    .sort((a, b) => a.id - b.id)
+                    .map((clip) => (
+                      <AvailableClipCard
+                        key={clip.id}
+                        clip={clip}
+                        onAppend={() => addToSequence(clip.id)}
+                      />
+                    ))}
+                </Box>
+              )}
+            </Box>
+          </DialogContent>
+
+          {/* ── Drag overlay ──────────────────────────────── */}
+          <DragOverlay>
+            {activeDragClip ? (
+              <Card
+                className="
+                  flex items-center gap-1.5 px-4 py-2 opacity-80 shadow-xl
+                  ring-2 ring-blue-500
+                "
+              >
+                <DragIndicator fontSize="small" />
+                <Typography variant="body2" className="font-medium">
+                  {activeDragClip.name}
+                </Typography>
+              </Card>
+            ) : null}
+          </DragOverlay>
+
+          <DialogActions>
+            <Button onClick={() => setClipSelectOpen(false)}>取消</Button>
+            <Button onClick={handleClipSelectConfirm} variant="contained">
+              确认
+            </Button>
+          </DialogActions>
+        </DndContext>
       </Dialog>
     </Box>
+  );
+}
+
+// ── SequenceDroppable sub-component ────────────────────────
+
+function SequenceDroppable() {
+  const { setNodeRef, isOver } = useDroppable({ id: "sequence-droppable" });
+
+  return (
+    <Box
+      ref={setNodeRef}
+      className={`
+        rounded-lg border-2 border-dashed px-4 py-6 text-center transition-colors
+        ${isOver
+          ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20"
+          : "border-gray-300 dark:border-gray-600"}
+      `}
+    >
+      <Typography
+        variant="body2"
+        color={isOver ? "primary" : "text.secondary"}
+        className="italic"
+      >
+        {isOver ? "松开以添加分镜头" : "尚未添加分镜头，从下方拖入或点击 + 添加"}
+      </Typography>
+    </Box>
+  );
+}
+
+// ── AvailableClipCard sub-component ────────────────────────
+
+function AvailableClipCard({
+  clip,
+  onAppend,
+}: {
+  clip: { id: number; name: string; description: string };
+  onAppend: () => void;
+}) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: `available-${clip.id}`,
+    data: { clipId: clip.id },
+  });
+
+  return (
+    <Card
+      ref={setNodeRef}
+      className={`
+        transition-shadow hover:shadow-md
+        ${isDragging ? "opacity-50" : ""}
+      `}
+      {...attributes}
+      {...listeners}
+    >
+      <Box className="flex items-center gap-1 px-3 py-2">
+        <Box className="min-w-0 flex-1">
+          <Typography variant="body2" noWrap className="font-medium">
+            {clip.name}
+          </Typography>
+          <Typography
+            variant="caption"
+            color="text.secondary"
+            className="line-clamp-1 block"
+          >
+            {clip.description || "暂无描述"}
+          </Typography>
+        </Box>
+        {/* Use pointer-events-auto inside a draggable to keep the button clickable */}
+        <Box
+          className="shrink-0"
+          onClick={(e) => {
+            e.stopPropagation();
+            onAppend();
+          }}
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          <IconButton size="small" color="primary" title="追加到序列末尾">
+            <AddCircleOutline fontSize="small" />
+          </IconButton>
+        </Box>
+      </Box>
+    </Card>
+  );
+}
+
+// ── SortableClipItem sub-component ─────────────────────────
+
+function SortableClipItem({
+  uid,
+  index,
+  clip,
+  onRemove,
+}: {
+  uid: string;
+  index: number;
+  clip?: { id: number; name: string; description: string };
+  onRemove: () => void;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: uid });
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 10 : "auto",
+  };
+
+  return (
+    <Card
+      ref={setNodeRef}
+      style={style}
+      className={`
+        flex items-center gap-1 px-3 py-2
+        ${isDragging ? "shadow-lg" : ""}
+      `}
+    >
+      {/* Drag handle */}
+      <IconButton
+        size="small"
+        className="cursor-grab active:cursor-grabbing"
+        {...attributes}
+        {...listeners}
+      >
+        <DragIndicator fontSize="small" />
+      </IconButton>
+
+      {/* Order number badge */}
+      <Chip
+        label={`#${index + 1}`}
+        size="small"
+        variant="outlined"
+        className="shrink-0"
+      />
+
+      {/* Clip name */}
+      <Typography variant="body2" className="min-w-0 flex-1 font-medium">
+        {clip?.name ?? `分镜头 #${uid}`}
+      </Typography>
+
+      {/* Remove button */}
+      <IconButton size="small" color="error" onClick={onRemove} title="移除">
+        <HighlightOff fontSize="small" />
+      </IconButton>
+    </Card>
   );
 }
 
@@ -736,7 +1024,10 @@ function ManagerTrack({
   onToggleActivation: () => void;
   onAddClip: () => void;
 }) {
-  const assignedClips = clips.filter((c) => manager.clips.includes(c.id));
+  const clipLookup = new Map(clips.map((c) => [c.id, c]));
+  const assignedClips = manager.clips
+    .map((id) => clipLookup.get(id))
+    .filter((c): c is NonNullable<typeof c> => c !== undefined);
   const canStart = status === "disabled" || status === "error";
 
   return (
@@ -845,14 +1136,12 @@ function ManagerTrack({
           )}
           {assignedClips.length > 0 && (
             <Box
-              className="grid gap-2"
-              sx={{
-                gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))",
-              }}
+              className="flex flex-wrap gap-2"
             >
-              {assignedClips.map((clip) => (
-                <MiniClipCard
-                  key={clip.id}
+              {assignedClips.map((clip, index) => (
+                <OrderedClipCard
+                  key={`${clip.id}-${index}`}
+                  index={index}
                   name={clip.name}
                   description={clip.description}
                 />
@@ -868,12 +1157,14 @@ function ManagerTrack({
   );
 }
 
-// ── MiniClipCard sub-component ──────────────────────────────
+// ── OrderedClipCard sub-component ──────────────────────────
 
-function MiniClipCard({
+function OrderedClipCard({
+  index,
   name,
   description,
 }: {
+  index: number;
   name: string;
   description: string;
 }) {
@@ -881,15 +1172,19 @@ function MiniClipCard({
     <Tooltip title={description || "暂无描述"} arrow placement="top">
       <Card
         className="
-          w-full cursor-default transition-shadow
+          flex items-center gap-1.5 px-3 py-2 transition-shadow
           hover:shadow-sm
         "
       >
-        <Box className="px-3 py-2">
-          <Typography variant="body2" noWrap className="font-medium">
-            {name}
-          </Typography>
-        </Box>
+        <Chip
+          label={`#${index + 1}`}
+          size="small"
+          variant="outlined"
+          className="shrink-0"
+        />
+        <Typography variant="body2" noWrap className="font-medium">
+          {name}
+        </Typography>
       </Card>
     </Tooltip>
   );

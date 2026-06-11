@@ -165,7 +165,7 @@ public final class ProgramScheduler {
                     return targetID;
                 }
             };
-        } catch (RuntimeException | ComponentException e) {
+        } catch (RuntimeException | ComponentException | Error e) {
             LOGGER.warn("Cannot execute a manager.", e);
 
             ComponentException exception = new ComponentException.LinkageFailure(managerID).make(e);
