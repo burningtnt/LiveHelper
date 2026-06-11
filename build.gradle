@@ -3,6 +3,7 @@ plugins {
     id 'maven-publish'
     id 'net.neoforged.moddev' version '2.0.141'
     id 'idea'
+    id 'com.gradleup.shadow' version '9.4.2'
 }
 
 tasks.named('wrapper', Wrapper).configure {
@@ -110,6 +111,7 @@ neoForge {
 // "optional", meaning it will not be pulled by dependents of this mod.
 configurations {
     runtimeClasspath.extendsFrom localRuntime
+    implementation.extendsFrom(jij)
 }
 
 dependencies {
@@ -131,13 +133,16 @@ dependencies {
     // Example project dependency using a sister or child project:
     // implementation project(":myproject")
 
-    implementation "com.dylibso.chicory:runtime:1.7.5"
-    implementation "com.dylibso.chicory:compiler:1.7.5"
-    implementation "io.jooby:jooby:4.5.1"
-    implementation("io.jooby:jooby-netty:4.5.1") {
-        exclude group: "io.netty"
+    jij "com.dylibso.chicory:runtime:1.7.5"
+    jij("io.jooby:jooby:4.5.1") {
+        exclude group: "org.slf4j"
+        exclude group: "org.jspecify"
     }
-
+    jij("io.jooby:jooby-netty:4.5.1") {
+        exclude group: "io.netty"
+        exclude group: "org.slf4j"
+        exclude group: "org.jspecify"
+    }
 
     // For more info:
     // http://www.gradle.org/docs/current/userguide/artifact_dependencies_tutorial.html
@@ -166,6 +171,18 @@ var generateModMetadata = tasks.register("generateModMetadata", ProcessResources
 sourceSets.main.resources.srcDir generateModMetadata
 // To avoid having to run "generateModMetadata" manually, make it run on every project reload
 neoForge.ideSyncTask generateModMetadata
+
+tasks.shadowJar {
+    configurations = [project.configurations.jij]
+    enableAutoRelocation = true
+    relocationPrefix = "net.burningtnt.livehelper.internal"
+
+    mergeServiceFiles()
+
+    from('src/frontend/build/client') {
+        into('/assets/live_helper/webassets')
+    }
+}
 
 // Example configuration to allow publishing using the maven-publish plugin
 publishing {

@@ -34,7 +34,7 @@ import static java.lang.foreign.ValueLayout.JAVA_INT;
         Path library;
         try {
             library = Files.createTempFile("libSpoutBinding-", ".dll").toAbsolutePath();
-            try (InputStream is = SpoutSupport.class.getResourceAsStream("/libSpoutBinding.dll");
+            try (InputStream is = SpoutSupport.class.getResourceAsStream("/assets/live_helper/libSpoutBinding.dll");
                  OutputStream os = Files.newOutputStream(library)
             ) {
                 Objects.requireNonNull(is, "Missing libSpoutBinding.dll").transferTo(os);

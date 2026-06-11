@@ -1,5 +1,5 @@
 import Editor from "@monaco-editor/react";
-import * as monaco from "monaco-editor";
+import * as monaco from "monaco-editor/esm/vs/editor/editor.api";
 
 type Monaco = typeof monaco;
 
