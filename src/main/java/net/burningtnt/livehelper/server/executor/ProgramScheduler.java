@@ -1,16 +1,16 @@
 package net.burningtnt.livehelper.server.executor;
 
-import it.unimi.dsi.fastutil.ints.Int2IntMap;
-import it.unimi.dsi.fastutil.ints.Int2IntOpenHashMap;
 import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
+import it.unimi.dsi.fastutil.longs.Long2IntMap;
+import it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap;
+import net.burningtnt.livehelper.api.ActiveStream;
 import net.burningtnt.livehelper.server.components.Clip;
 import net.burningtnt.livehelper.server.components.InputValue;
 import net.burningtnt.livehelper.server.components.Manager;
 import net.burningtnt.livehelper.server.components.Program;
 import net.burningtnt.livehelper.server.components.storage.ComponentException;
 import net.burningtnt.livehelper.server.components.storage.ComponentStorage;
-import net.burningtnt.livehelper.api.ActiveStream;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.fml.common.EventBusSubscriber;
 import org.slf4j.Logger;
@@ -90,9 +90,8 @@ public final class ProgramScheduler {
                 managerInputs.add(new InputValue.Number("clip." + i + ".duration", clip.duration()));
                 managerInputs.add(new InputValue.Chars("clip." + i + ".name", clip.name()));
 
-                LinkedMachine machine = new LinkedMachine(storage, clip.programID(), clip.inputs(), Program.Usage.CLIP);
-                if (clipPrograms.put(clipID, machine) != null) {
-                    throw new ComponentException.IDDuplicate(clipID).make();
+                if (!clipPrograms.containsKey(clipID)) {
+                    clipPrograms.put(clipID, new LinkedMachine(storage, clip.programID(), clip.inputs(), Program.Usage.CLIP));
                 }
             }
 
@@ -108,7 +107,7 @@ public final class ProgramScheduler {
                         managerInputs.removeLast();
 
                         List<RenderStep> steps = new ArrayList<>();
-                        int finalID = collectSteps(steps, new AtomicInteger(0), instruction, new Int2IntOpenHashMap(), new HashSet<>());
+                        int finalID = collectSteps(steps, new AtomicInteger(0), instruction, new Long2IntOpenHashMap(), new HashSet<>());
                         steps.add(new RenderStep.Display(finalID));
                         return steps;
                     } catch (RuntimeException | ComponentException e) {
@@ -122,7 +121,7 @@ public final class ProgramScheduler {
                         List<RenderStep> steps,
                         AtomicInteger currentTargetID,
                         RenderNode current,
-                        Int2IntMap renderedClips, // clipID -> targetID
+                        Long2IntMap renderedClips, // (clipID + progress) -> targetID
                         Set<RenderNode> previous
                 ) throws ComponentException {
                     if (!previous.add(current)) {
@@ -132,8 +131,9 @@ public final class ProgramScheduler {
                     switch (current) {
                         case RenderNode.Single(int i, float progress) -> {
                             int clipID = manager.clips()[i];
+                            long cacheKey = ((long) clipID << 32) | (Float.floatToIntBits(progress) & 0xFFFFFFFFL);
 
-                            int targetID = renderedClips.getOrDefault(clipID, Integer.MIN_VALUE);
+                            int targetID = renderedClips.getOrDefault(cacheKey, Integer.MIN_VALUE);
                             if (targetID == Integer.MIN_VALUE) {
                                 List<InputValue> inputs = List.of(new InputValue.Number("progress", progress));
 
@@ -141,7 +141,7 @@ public final class ProgramScheduler {
                                         clipPrograms.get(clipID).executeProgram(FrameRequest.class, inputs),
                                         targetID = requestTargetID(currentTargetID)
                                 ));
-                                return targetID;
+                                renderedClips.put(cacheKey, targetID);
                             }
                             return targetID;
                         }

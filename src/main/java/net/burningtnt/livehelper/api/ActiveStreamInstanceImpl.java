@@ -90,8 +90,6 @@ import java.util.concurrent.TimeUnit;
                     return;
                 }
 
-                FrameBufferWorkaround.ensureSize(config.width(), config.height());
-
                 long frameNs = Math.max(TimeUnit.MILLISECONDS.toNanos(5), TimeUnit.SECONDS.toNanos(1) / config.fps());
                 long nextFrameNs = Math.max(taskNs + frameNs, System.nanoTime());
 
