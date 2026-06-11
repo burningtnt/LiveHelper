@@ -104,6 +104,13 @@ export default function Program() {
     return () => document.removeEventListener("visibilitychange", onVisibilityChange);
   }, [selectedId, refetchCode]);
 
+  // Reset status indicators when switching programs
+  useEffect(() => {
+    setSaveStatus("idle");
+    setCompileStatus("idle");
+    setCompileError(null);
+  }, [selectedId]);
+
   // ── Debounced code save ───────────────────────────────────
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
 
@@ -409,7 +416,20 @@ export default function Program() {
                   </Tooltip>
                 )}
                 {compileStatus === "error" && (
-                  <Tooltip title={compileError || "编译出错"} arrow>
+                  <Tooltip
+                    title={compileError || "编译出错"}
+                    arrow
+                    slotProps={{
+                      tooltip: {
+                        sx: {
+                          maxWidth: 600,
+                          whiteSpace: "pre-wrap",
+                          fontFamily: "monospace",
+                          fontSize: 12,
+                        },
+                      },
+                    }}
+                  >
                     <ErrorOutline color="error" sx={{ fontSize: 14 }} />
                   </Tooltip>
                 )}

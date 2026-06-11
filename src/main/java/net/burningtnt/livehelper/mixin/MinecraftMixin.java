@@ -3,6 +3,7 @@ package net.burningtnt.livehelper.mixin;
 import com.llamalad7.mixinextras.injector.v2.WrapWithCondition;
 import net.burningtnt.livehelper.MainScheduler;
 import net.burningtnt.livehelper.api.ActiveStreamImpl;
+import net.burningtnt.livehelper.server.UIPoseRequest;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.GameRenderer;
 import org.spongepowered.asm.mixin.Final;
@@ -61,5 +62,12 @@ public abstract class MinecraftMixin {
     )
     private void onTick(Minecraft instance, boolean advanceGameTime) {
         MainScheduler.tick(!advanceGameTime);
+    }
+
+    @Inject(method = "pauseGame", at = @At("HEAD"), cancellable = true)
+    private void beforePauseGame(boolean suppressPauseMenuIfWeReallyArePausing, CallbackInfo ci) {
+        if (UIPoseRequest.onEscape()) {
+            ci.cancel();
+        }
     }
 }

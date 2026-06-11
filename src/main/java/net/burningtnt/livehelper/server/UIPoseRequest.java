@@ -1,5 +1,8 @@
 package net.burningtnt.livehelper.server;
 
+import com.sun.jna.Pointer;
+import com.sun.jna.platform.win32.User32;
+import com.sun.jna.platform.win32.WinDef;
 import net.burningtnt.livehelper.LiveHelper;
 import net.burningtnt.livehelper.server.components.InputValue;
 import net.burningtnt.livehelper.util.AngleConvert;
@@ -7,7 +10,6 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.FormattedCharSequence;
-import net.minecraft.world.phys.Vec2;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
@@ -16,6 +18,10 @@ import net.neoforged.neoforge.client.event.InputEvent;
 import net.neoforged.neoforge.client.event.RegisterGuiLayersEvent;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
+import org.lwjgl.glfw.GLFW;
+import org.lwjgl.glfw.GLFWNativeWin32;
+import oshi.PlatformEnum;
+import oshi.SystemInfo;
 
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -42,6 +48,7 @@ public final class UIPoseRequest {
     public static String submit() {
         String key = UUID.randomUUID().toString();
         V.set(new State.Pending(System.currentTimeMillis(), key));
+        requestFocus();
         return key;
     }
 
@@ -91,6 +98,44 @@ public final class UIPoseRequest {
             V.compareAndSet(pending, new State.Ready(pending.key, new InputValue.Pose(pending.key,
                     new InputValue.Pose.PoseInstance((float) position.x, (float) position.y, (float) position.z, q.x, q.y, q.z, q.w)
             )));
+            yieldFocus();
         }
+    }
+
+    public static boolean onEscape() {
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft.player != null
+                && V.get() instanceof State.Pending pending
+                && System.currentTimeMillis() - pending.timestamp < TimeUnit.SECONDS.toMillis(60)
+        ) {
+            V.compareAndSet(pending, State.Nil.INSTANCE);
+            yieldFocus();
+            return true;
+        }
+        return false;
+    }
+
+    private static void requestFocus() {
+        Minecraft.getInstance().execute(() -> {
+            long window = Minecraft.getInstance().getWindow().handle();
+
+            if (GLFW.glfwGetWindowAttrib(window, GLFW.GLFW_ICONIFIED) == GLFW.GLFW_TRUE) {
+                GLFW.glfwRestoreWindow(window);
+            }
+
+            if (SystemInfo.getCurrentPlatform() == PlatformEnum.WINDOWS) {
+                long hwnd = GLFWNativeWin32.glfwGetWin32Window(window);
+                User32.INSTANCE.SetForegroundWindow(new WinDef.HWND(Pointer.createConstant(hwnd)));
+            } else {
+                GLFW.glfwFocusWindow(window);
+            }
+        });
+    }
+
+    private static void yieldFocus() {
+        Minecraft.getInstance().execute(() -> {
+            long window = Minecraft.getInstance().getWindow().handle();
+            GLFW.glfwIconifyWindow(window);
+        });
     }
 }

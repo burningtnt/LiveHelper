@@ -8,7 +8,6 @@ import io.jooby.Server;
 import io.jooby.StatusCode;
 import io.jooby.exception.StatusCodeException;
 import io.jooby.handler.AssetSource;
-import net.burningtnt.livehelper.LiveHelper;
 import net.burningtnt.livehelper.server.components.Clip;
 import net.burningtnt.livehelper.server.components.InputValue;
 import net.burningtnt.livehelper.server.components.Manager;
@@ -28,10 +27,10 @@ import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
 import net.neoforged.fml.loading.FMLEnvironment;
 import net.neoforged.fml.loading.FMLLoader;
 import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent;
-import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.core.config.Configurator;
+import org.jspecify.annotations.NonNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.helpers.NOPLogger;
 
 import java.net.URI;
 import java.nio.file.Path;
@@ -41,9 +40,8 @@ import java.util.concurrent.Executors;
 
 @EventBusSubscriber(Dist.CLIENT)
 public final class UIServer extends Jooby {
-    @SuppressWarnings("LoggerInitializedWithForeignClass")
-    private static final Logger LOGGER = LoggerFactory.getLogger(LiveHelper.class); // DO NOT EDIT: UIServer's logging is polluted
-    private static UIServer INSTANCE;                                               // by Jooby, forcing us to use another logger
+    private static final Logger LOGGER = LoggerFactory.getLogger(UIServer.class);
+    private static UIServer INSTANCE;
 
     @SubscribeEvent
     private static void on(FMLClientSetupEvent event) {
@@ -81,9 +79,8 @@ public final class UIServer extends Jooby {
     }
 
     private UIServer() {
-        Configurator.setLevel(UIServer.class, Level.OFF);
-
         getServerOptions().setPort(23512);
+        getServerOptions().setCompressionLevel(3);
         setWorker(Executors.newSingleThreadExecutor(Thread.ofPlatform().daemon().name("LiveHelper WebServer Router [DEFAULT]").factory()));
         setExecutionMode(ExecutionMode.EVENT_LOOP);
         install(new GsonModule(ComponentStorage.GSON));
@@ -415,5 +412,10 @@ public final class UIServer extends Jooby {
             case ProgramScheduler.ManagerStatus.Nil _ -> object.addProperty("status", "disabled");
         }
         return object;
+    }
+
+    @Override
+    public @NonNull Logger getLog() {
+        return NOPLogger.NOP_LOGGER;
     }
 }

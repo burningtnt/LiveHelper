@@ -271,11 +271,13 @@ export default function ManagerRoute() {
           id: editingManager.id,
           name: data.name,
           description: data.description,
+          clips: editingManager.clips,
           program: data.program,
           width: data.width,
           height: data.height,
           fps: data.fps,
           renderDistance: data.renderDistance,
+          inputs: editingManager.inputs,
         },
       });
     })();
