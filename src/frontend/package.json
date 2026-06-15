@@ -3,9 +3,9 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "dev": "pnpm --filter @livehelper/frontend dev",
-    "build": "pnpm --filter @livehelper/std build && pnpm --filter @livehelper/frontend build",
-    "typecheck": "pnpm --filter @livehelper/frontend typecheck"
+    "dev": "corepack pnpm --filter @livehelper/frontend dev",
+    "build": "corepack pnpm --filter @livehelper/std build && corepack pnpm --filter @livehelper/frontend build",
+    "typecheck": "corepack pnpm --filter @livehelper/frontend typecheck"
   },
   "packageManager": "pnpm@11.5.0"
 }
