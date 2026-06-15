@@ -6,6 +6,11 @@ plugins {
     id 'com.gradleup.shadow' version '9.4.2'
 }
 
+interface InjectedExecOps {
+    @javax.inject.Inject
+    ExecOperations getExecOps()
+}
+
 tasks.named('wrapper', Wrapper).configure {
     // Define wrapper values here so as to not have to always do so when updating gradlew.properties.
     // Switching this to Wrapper.DistributionType.ALL will download the full gradle sources that comes with
@@ -172,6 +177,27 @@ sourceSets.main.resources.srcDir generateModMetadata
 // To avoid having to run "generateModMetadata" manually, make it run on every project reload
 neoForge.ideSyncTask generateModMetadata
 
+var buildFrontend = tasks.register("buildFrontend") {
+    def injected = project.objects.newInstance(InjectedExecOps)
+
+    doLast {
+        injected.execOps.exec {
+            workingDir("src/frontend")
+            commandLine(org.gradle.internal.os.OperatingSystem.current().isWindows() ? "corepack.cmd" : "corepack", "prepare", "pnpm", "--activate")
+        }
+
+        injected.execOps.exec {
+            workingDir("src/frontend")
+            commandLine(org.gradle.internal.os.OperatingSystem.current().isWindows() ? "corepack.cmd" : "corepack", "pnpm", "install", "--frozen-lockfile", "--force")
+        }
+
+        injected.execOps.exec {
+            workingDir("src/frontend")
+            commandLine(org.gradle.internal.os.OperatingSystem.current().isWindows() ? "corepack.cmd" : "corepack", "pnpm", "build")
+        }
+    }
+}
+
 tasks.shadowJar {
     configurations = [project.configurations.jij]
     enableAutoRelocation = true
@@ -181,6 +207,8 @@ tasks.shadowJar {
 }
 
 tasks.processResources {
+    dependsOn(buildFrontend)
+
     from('src/frontend/packages/frontend/build/client') {
         into('/assets/live_helper/webassets')
     }
