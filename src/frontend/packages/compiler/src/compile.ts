@@ -1,6 +1,6 @@
-import commonInclude from "./template/include/common.as?raw";
-import clipInclude from "./template/include/clip.as?raw";
-import managerInclude from "./template/include/manager.as?raw";
+import commonInclude from "./include/common.js";
+import clipInclude from "./include/clip.js";
+import managerInclude from "./include/manager.js";
 
 /**
  * Compile AssemblyScript code with modular include files.

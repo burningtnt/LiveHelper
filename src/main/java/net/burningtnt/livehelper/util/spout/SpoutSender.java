@@ -5,6 +5,8 @@ import java.lang.ref.Cleaner;
 import java.lang.ref.Reference;
 
 public final class SpoutSender implements AutoCloseable {
+    public static final boolean AVAILABLE = SpoutSupport.AVAILABLE;
+
     private static final Cleaner CLEANER = Cleaner.create();
 
     private final MemorySegment spout;

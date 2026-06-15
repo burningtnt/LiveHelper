@@ -2,8 +2,6 @@ package net.burningtnt.livehelper.server.components.storage;
 
 import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
-import net.burningtnt.livehelper.LiveHelper;
-import net.neoforged.fml.loading.FMLPaths;
 import org.jetbrains.annotations.Nullable;
 import org.jspecify.annotations.NonNull;
 import org.slf4j.Logger;
@@ -19,7 +17,6 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -123,14 +120,18 @@ public abstract class ComponentStorageBucket<T> {
 
     @NonNull
     private Path computeBase() {
-        Path base = Objects.requireNonNullElse(FMLPaths.CONFIGDIR.get(), Path.of("config").toAbsolutePath());
-        return base.resolve(LiveHelper.MODID).resolve("storage." + category);
+        return ComponentStorage.ROOT.get().resolve("storage." + category);
     }
 
     public CompletableFuture<Runnable> load() {
         return CompletableFuture.supplyAsync(() -> {
+            Path base = computeBase();
+            if (!Files.isDirectory(base)) {
+                return () -> {};
+            }
+
             List<T> values = new ArrayList<>();
-            try (DirectoryStream<Path> stream = Files.newDirectoryStream(computeBase())) {
+            try (DirectoryStream<Path> stream = Files.newDirectoryStream(base)) {
                 for (Path path : stream) {
                     String filename = path.getFileName().toString();
                     if (!filename.endsWith("." + extension)) {

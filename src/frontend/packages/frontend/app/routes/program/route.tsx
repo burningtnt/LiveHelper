@@ -37,7 +37,7 @@ import {
 import { parseError } from "~/utils";
 import InputEditor from "./InputEditor";
 import ComponentCard from "~/components/ComponentCard";
-import { compileWithIncludes } from "./asc";
+import { compileWithIncludes, clipTemplate, managerTemplate } from "@livehelper/compiler";
 
 const AssemblyScriptEditor = lazy(() => import("~/components/AssemblyScriptEditor"));
 
@@ -49,9 +49,7 @@ const programFormSchema = z.object({
 });
 type ProgramFormData = z.infer<typeof programFormSchema>;
 
-// ── Template files ─────────────────────────────────────────
-import clipTemplate from "./template/clip.as?raw";
-import managerTemplate from "./template/manager.as?raw";
+// Templates are imported from @livehelper/compiler
 
 const usageLabels: Record<string, string> = {
   clip: "分镜头",

@@ -1,0 +1,16 @@
+{
+  "name": "@livehelper/std",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "build": "tsx src/index.ts",
+    "start": "tsx src/index.ts"
+  },
+  "dependencies": {
+    "@livehelper/compiler": "workspace:*",
+    "@livehelper/schema": "workspace:*"
+  },
+  "devDependencies": {
+    "tsx": "^4.22.4"
+  }
+}

@@ -4,6 +4,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import io.jooby.ExecutionMode;
 import io.jooby.Jooby;
+import io.jooby.MediaType;
 import io.jooby.Server;
 import io.jooby.StatusCode;
 import io.jooby.exception.StatusCodeException;
@@ -17,11 +18,13 @@ import net.burningtnt.livehelper.server.components.ProgramScript;
 import net.burningtnt.livehelper.server.components.storage.ComponentException;
 import net.burningtnt.livehelper.server.components.storage.ComponentStorage;
 import net.burningtnt.livehelper.server.executor.ProgramScheduler;
+import net.burningtnt.livehelper.util.spout.SpoutSender;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.ClickEvent;
 import net.minecraft.network.chat.Component;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.ModList;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
 import net.neoforged.fml.loading.FMLEnvironment;
@@ -32,7 +35,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.helpers.NOPLogger;
 
+import java.io.InputStream;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
@@ -56,6 +61,7 @@ public final class UIServer extends Jooby {
             server.start(application);
 
             INSTANCE = application;
+            LOGGER.info("LiveHelper is started at http://localhost:{}/", INSTANCE.getServerOptions().getPort());
         } catch (Exception e) {
             LOGGER.warn("Cannot launch LiveHelper UI", e);
         }
@@ -63,7 +69,8 @@ public final class UIServer extends Jooby {
 
     @SubscribeEvent
     private static void on(ClientPlayerNetworkEvent.LoggingIn event) {
-        if (INSTANCE == null) {
+        ModList mods = ModList.get();
+        if (INSTANCE == null || (mods.isLoaded("powertool") && mods.isLoaded("area_control") && mods.isLoaded("toad_sync"))) {
             return;
         }
 
@@ -83,12 +90,34 @@ public final class UIServer extends Jooby {
         getServerOptions().setCompressionLevel(3);
         setWorker(Executors.newSingleThreadExecutor(Thread.ofPlatform().daemon().name("LiveHelper WebServer Router [DEFAULT]").factory()));
         setExecutionMode(ExecutionMode.EVENT_LOOP);
+
+        if (!SpoutSender.AVAILABLE) {
+            before(ctx -> {
+                ctx.setResponseType(MediaType.HTML);
+                ctx.setResponseCode(503);
+
+                try (InputStream is = UIServer.class.getResourceAsStream("/assets/live_helper/fatal.html")) {
+                    String content = new String(Objects.requireNonNull(is).readAllBytes(), StandardCharsets.UTF_8)
+                            .replace("{ERROR_ID}", "SPOUT_UNAVAILABLE");
+                    ctx.send(content);
+                }
+            });
+            return;
+        }
+
         install(new GsonModule(ComponentStorage.GSON));
 
         ComponentStorage storage = new ComponentStorage();
-        ExecutorService apiExecutor = Executors.newSingleThreadExecutor(Thread.ofPlatform().daemon().name("LiveHelper WebServer Router [API]").factory());
-        storage.load().thenAcceptAsync(Runnable::run, apiExecutor);
         ProgramScheduler scheduler = new ProgramScheduler(storage);
+        ExecutorService apiExecutor = Executors.newSingleThreadExecutor(Thread.ofPlatform().daemon().name("LiveHelper WebServer Router [API]").factory());
+        storage.load()
+                .thenAcceptAsync(Runnable::run, apiExecutor)
+                .whenCompleteAsync((_, t) -> {
+                    if (t != null) {
+                        LOGGER.warn("Cannot initialize LiveHelper", t);
+                    }
+                });
+
 
         dispatch(apiExecutor, () -> path("/api/v1", () -> {
             get("/program", _ -> storage.programs.getAll());
@@ -384,13 +413,7 @@ public final class UIServer extends Jooby {
             });
         }));
 
-        AssetSource asset;
-        if (FMLLoader.getCurrentOrNull() == null || !FMLEnvironment.isProduction()) {
-            asset = AssetSource.create(Path.of("../src/frontend/build/client"));
-        } else {
-            asset = AssetSource.create(UIServer.class.getClassLoader(), "/assets/live_helper/webassets");
-        }
-        assets("/**", asset); // TODO: Support gzip
+        assets("/**", AssetSource.create(UIServer.class.getClassLoader(), "/assets/live_helper/webassets"));
     }
 
     private Object encodeActivation(ProgramScheduler.ManagerStatus status) {

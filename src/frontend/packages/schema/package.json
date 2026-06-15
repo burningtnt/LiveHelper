@@ -1,0 +1,8 @@
+{
+  "name": "@livehelper/schema",
+  "type": "module",
+  "private": true,
+  "exports": {
+    ".": "./src/index.ts"
+  }
+}

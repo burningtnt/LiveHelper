@@ -1,11 +1,8 @@
 .DS_Store
 .env
-/node_modules/
+node_modules
+.react-router
 build
 dist
-
-# React Router
-/.react-router/
-/build/
 
 .vscode

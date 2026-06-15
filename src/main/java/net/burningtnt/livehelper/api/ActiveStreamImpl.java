@@ -36,7 +36,8 @@ public final class ActiveStreamImpl {
         }
     }
 
-    /* package-private */ static void runWith(ActiveStreamInstanceImpl instance, ActiveStream.FrameRequest request, Runnable runnable) {
+    /* package-private */
+    static void runWith(ActiveStreamInstanceImpl instance, ActiveStream.FrameRequest request, Runnable runnable) {
         ScopedValue.where(CURRENT_INSTANCE, new ActiveInstance(instance, request)).run(runnable);
     }
 
@@ -50,7 +51,8 @@ public final class ActiveStreamImpl {
 
     private static final List<ActiveStreamInstanceImpl> INSTANCES = new ArrayList<>();
 
-    /* package-private */ static void activate(ActiveStream.Config config, ActiveStream stream) {
+    /* package-private */
+    static void activate(ActiveStream.Config config, ActiveStream stream) {
         Minecraft.getInstance().execute(() -> {
             if (CURRENT_INSTANCE.isBound()) {
                 throw new IllegalStateException("Cannot activate a new stream when rendering frames.");
@@ -65,7 +67,8 @@ public final class ActiveStreamImpl {
         });
     }
 
-    /* package-private */ static void deactivate(ActiveStream stream) {
+    /* package-private */
+    static void deactivate(ActiveStream stream) {
         Minecraft.getInstance().execute(() -> {
             for (int i = 0; i < INSTANCES.size(); i++) {
                 ActiveStreamInstanceImpl instance = INSTANCES.get(i);

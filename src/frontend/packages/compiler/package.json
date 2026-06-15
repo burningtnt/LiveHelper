@@ -1,0 +1,11 @@
+{
+  "name": "@livehelper/compiler",
+  "type": "module",
+  "private": true,
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "assemblyscript": "^0.28.17"
+  }
+}

@@ -24,42 +24,47 @@ import static java.lang.foreign.ValueLayout.JAVA_INT;
     private SpoutSupport() {
     }
 
+    public static final boolean AVAILABLE;
     public static final MethodHandle spCreateSpout, spReleaseSpout, spSendFrameBufferObject;
 
     static {
         if (SystemInfo.getCurrentPlatform() != PlatformEnum.WINDOWS) {
-            throw new ExceptionInInitializerError("LiveHelper requires Windows 10+.");
-        }
-
-        Path library;
-        try {
-            library = Files.createTempFile("libSpoutBinding-", ".dll").toAbsolutePath();
-            try (InputStream is = SpoutSupport.class.getResourceAsStream("/assets/live_helper/libSpoutBinding.dll");
-                 OutputStream os = Files.newOutputStream(library)
-            ) {
-                Objects.requireNonNull(is, "Missing libSpoutBinding.dll").transferTo(os);
+            AVAILABLE = false;
+            spCreateSpout = null;
+            spReleaseSpout = null;
+            spSendFrameBufferObject = null;
+        } else {
+            Path library;
+            try {
+                library = Files.createTempFile("libSpoutBinding-", ".dll").toAbsolutePath();
+                try (InputStream is = SpoutSupport.class.getResourceAsStream("/assets/live_helper/libSpoutBinding.dll");
+                     OutputStream os = Files.newOutputStream(library)
+                ) {
+                    Objects.requireNonNull(is, "Missing libSpoutBinding.dll").transferTo(os);
+                }
+            } catch (IOException e) {
+                throw new ExceptionInInitializerError(e);
             }
-        } catch (IOException e) {
-            throw new ExceptionInInitializerError(e);
+
+            System.load(library.toString());
+            SymbolLookup lookup = SymbolLookup.libraryLookup(library, Arena.global())
+                    .or(SymbolLookup.loaderLookup())
+                    .or(Linker.nativeLinker().defaultLookup());
+
+            AVAILABLE = true;
+            spCreateSpout = Linker.nativeLinker().downcallHandle(
+                    lookup.findOrThrow("spCreateSpout"),
+                    FunctionDescriptor.of(ADDRESS, ADDRESS)
+            );
+            spReleaseSpout = Linker.nativeLinker().downcallHandle(
+                    lookup.findOrThrow("spReleaseSpout"),
+                    FunctionDescriptor.ofVoid(ADDRESS)
+            );
+            spSendFrameBufferObject = Linker.nativeLinker().downcallHandle(
+                    lookup.findOrThrow("spSendFrameBufferObject"),
+                    FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_INT, JAVA_INT, JAVA_INT)
+            );
         }
-
-        System.load(library.toString());
-        SymbolLookup lookup = SymbolLookup.libraryLookup(library, Arena.global())
-                .or(SymbolLookup.loaderLookup())
-                .or(Linker.nativeLinker().defaultLookup());
-
-        spCreateSpout = Linker.nativeLinker().downcallHandle(
-                lookup.findOrThrow("spCreateSpout"),
-                FunctionDescriptor.of(ADDRESS, ADDRESS)
-        );
-        spReleaseSpout = Linker.nativeLinker().downcallHandle(
-                lookup.findOrThrow("spReleaseSpout"),
-                FunctionDescriptor.ofVoid(ADDRESS)
-        );
-        spSendFrameBufferObject = Linker.nativeLinker().downcallHandle(
-                lookup.findOrThrow("spSendFrameBufferObject"),
-                FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_INT, JAVA_INT, JAVA_INT)
-        );
     }
 
     public static MemorySegment create(String name) {

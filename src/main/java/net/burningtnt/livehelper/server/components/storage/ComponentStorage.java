@@ -7,12 +7,15 @@ import com.google.gson.TypeAdapterFactory;
 import com.google.gson.reflect.TypeToken;
 import com.google.gson.stream.JsonReader;
 import com.google.gson.stream.JsonWriter;
+import net.burningtnt.livehelper.LiveHelper;
 import net.burningtnt.livehelper.server.components.Clip;
 import net.burningtnt.livehelper.server.components.Manager;
 import net.burningtnt.livehelper.server.components.Program;
 import net.burningtnt.livehelper.server.components.ProgramBinary;
 import net.burningtnt.livehelper.server.components.ProgramScript;
 import net.burningtnt.livehelper.server.components.Validation;
+import net.neoforged.fml.loading.FMLPaths;
+import net.neoforged.neoforge.common.util.Lazy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -21,7 +24,11 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 
 public final class ComponentStorage {
@@ -51,6 +58,12 @@ public final class ComponentStorage {
             .create();
 
     private static final Logger LOGGER = LoggerFactory.getLogger(ComponentStorage.class);
+
+    public static final Lazy<Path> ROOT = Lazy.of(() ->
+            Objects.requireNonNullElse(FMLPaths.CONFIGDIR.get(), Path.of("config"))
+                    .toAbsolutePath()
+                    .resolve(LiveHelper.MODID)
+    );
 
     private static abstract class JsonStorageBucket<T> extends ComponentStorageBucket<T> {
         private final Class<T> clazz;
@@ -138,21 +151,48 @@ public final class ComponentStorage {
         }
     };
 
-    public CompletableFuture<Runnable> load() {
-        ComponentStorageBucket<?>[] buckets = {programs, scripts, binaries, clips, managers};
+    private static final String STORE_ROOT = "/assets/live_helper/script-predefined/";
 
-        CompletableFuture<?>[] futures = new CompletableFuture[buckets.length];
-        for (int i = 0; i < buckets.length; i++) {
-            futures[i] = buckets[i].load();
-        }
-        return CompletableFuture.allOf(futures).thenApply(_ -> () -> {
-            for (CompletableFuture<?> future : futures) {
+    public CompletableFuture<Runnable> load() {
+        return CompletableFuture.runAsync(() -> {
+            if (!Files.exists(ROOT.get())) {
                 try {
-                    ((Runnable) future.resultNow()).run();
-                } catch (RuntimeException e) {
-                    LOGGER.warn("Cannot initialize storage.", e);
+                    String[] files;
+                    try (InputStream is = ComponentStorage.class.getResourceAsStream(STORE_ROOT + "index.json")) {
+                        files = GSON.fromJson(new String(Objects.requireNonNull(is).readAllBytes(), StandardCharsets.UTF_8), String[].class);
+                    }
+
+                    Path root = ROOT.get();
+                    for (String file : files) {
+                        Path v = root.resolve(file);
+                        Files.createDirectories(v.getParent());
+
+                        try (InputStream input = Objects.requireNonNull(ComponentStorage.class.getResourceAsStream(STORE_ROOT + file), file);
+                             OutputStream os = Files.newOutputStream(v)
+                        ) {
+                            input.transferTo(os);
+                        }
+                    }
+                } catch (IOException e1) {
+                    throw new UncheckedIOException(e1);
                 }
             }
+        }).thenComposeAsync(_ -> {
+            ComponentStorageBucket<?>[] buckets = {programs, scripts, binaries, clips, managers};
+            CompletableFuture<?>[] futures = new CompletableFuture[buckets.length];
+            for (int i = 0; i < buckets.length; i++) {
+                futures[i] = buckets[i].load();
+            }
+
+            return CompletableFuture.allOf(futures).thenApplyAsync(_ -> () -> {
+                for (CompletableFuture<?> future : futures) {
+                    try {
+                        ((Runnable) future.resultNow()).run();
+                    } catch (RuntimeException e) {
+                        LOGGER.warn("Cannot initialize storage.", e);
+                    }
+                }
+            });
         });
     }
 }

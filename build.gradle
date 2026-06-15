@@ -178,9 +178,15 @@ tasks.shadowJar {
     relocationPrefix = "net.burningtnt.livehelper.internal"
 
     mergeServiceFiles()
+}
 
-    from('src/frontend/build/client') {
+tasks.processResources {
+    from('src/frontend/packages/frontend/build/client') {
         into('/assets/live_helper/webassets')
+    }
+
+    from('src/frontend/packages/std/build') {
+        into('/assets/live_helper/script-predefined')
     }
 }
 

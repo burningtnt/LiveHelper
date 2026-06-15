@@ -13,25 +13,37 @@ Minecraft in-game live shows.
 - Setup multiple in-game cameras and dispatch rendered textures with [Spout2](https://github.com/leadedge/Spout2), without using a real window + OBS Game Capture
 - Control cameras with user scripts (AssemblyScript)
 
-**Stack** (see `package.json` for exact versions):
+## 2. Workspace Structure (pnpm monorepo)
+
+This is a pnpm workspace with three packages under `packages/`:
+
+| Package | Path | Description |
+|---------|------|-------------|
+| `@livehelper/compiler` | `packages/compiler/` | AssemblyScript compiler engine (`compileWithIncludes`, template/include strings) |
+| `@livehelper/frontend` | `packages/frontend/` | React web UI (depends on compiler) |
+| `@livehelper/std` | `packages/std/` | Reserved helper script (depends on compiler) |
+
+The root `package.json` forwards dev/build/start/typecheck to `@livehelper/frontend`.
+
+**Stack** (see `packages/frontend/package.json` for exact versions):
 
 - React 19 + React Router v7 (SPA mode, `ssr: false`)
 - TypeScript 5 strict, Vite 8
-- Material UI v7 + `@mui/x-data-grid` for layout / inputs / tables
+- Material UI v7 for layout / inputs / tables
 - Tailwind CSS v4 (with explicit `@layer` ordering against MUI) + `tw-animate-css`
 - TanStack Query v5 for all server state
 - Monaco Editor for displaying AssemblyScript codes.
 - React Hook Form + Zod for forms and validation
 - Axios for HTTP, Sonner for toasts, Day.js for dates, lodash-es for helpers
-- pnpm as the package manager (see `Dockerfile` and `pnpm-lock.yaml`)
+- pnpm as the package manager (see `pnpm-workspace.yaml` and `pnpm-lock.yaml`)
 
 The backend is a separate service. In dev, Vite proxies `/api` to
-`http://host.docker.internal:8000/api` (see `vite.config.ts`); never check in
+`http://host.docker.internal:8000/api` (see `packages/frontend/vite.config.ts`); never check in
 production URLs that differ from this.
 
 ---
 
-## 2. Build, Run & Test Commands
+## 3. Build, Run & Test Commands
 
 Always use **pnpm** — the lockfile is `pnpm-lock.yaml` and CI runs
 `pnpm install --frozen-lockfile`
@@ -54,7 +66,7 @@ typed route helpers under `.react-router/types` that components import as
 
 ---
 
-## 3. Project Layout
+## 4. Project Layout
 
 ```
 app/
@@ -82,7 +94,7 @@ use `~/api/api`.
 
 ---
 
-## 4. Code Style Guidelines
+## 5. Code Style Guidelines
 
 Linting is `@antfu/eslint-config` with `react: true` plus `better-tailwindcss`
 and Prettier (see `eslint.config.js`). Editor formats via ESLint, not Prettier
@@ -176,7 +188,7 @@ export function useFoo(options?: Omit<typeof defaultQueryOptions, "queryKey" | "
 
 ---
 
-## 5. Adding a New Route
+## 6. Adding a New Route
 
 1. Create `app/routes/<segment>/route.tsx` (or a flat `app/routes/<segment>.tsx`
    for simple routes).
@@ -189,7 +201,7 @@ export function useFoo(options?: Omit<typeof defaultQueryOptions, "queryKey" | "
 
 ---
 
-## 6. Testing Instructions
+## 7. Testing Instructions
 
 There is **no test framework configured** in this repo — no Vitest, no Jest,
 no Playwright. Do not add one without discussing with maintainers; pick the
@@ -212,7 +224,7 @@ lands.
 
 ---
 
-## 7. Security Considerations
+## 8. Security Considerations
 
 - **Avoid `dangerouslySetInnerHTML`.** Markdown rendering goes through the
   `Markdown` component in `app/components/Markdown.tsx`, which uses
@@ -235,7 +247,7 @@ lands.
 
 ---
 
-## 8. Build & Deploy Notes
+## 9. Build & Deploy Notes
 
 - Because we ship as SPA (`ssr: false` in `react-router.config.ts`), all
   routes must work via client-side hydration. Don't add `loader` calls that
@@ -243,7 +255,7 @@ lands.
 
 ---
 
-## 9. Common Pitfalls
+## 10. Common Pitfalls
 
 - Forgetting to add a new file to `app/routes.ts` → the route 404s silently.
 - Mixing MUI `sx` and Tailwind classes for the same property → MUI's CSS layer
