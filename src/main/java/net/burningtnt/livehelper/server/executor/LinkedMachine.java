@@ -26,7 +26,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
 
-public final class LinkedMachine {
+/* package-private */ final class LinkedMachine {
     @SuppressWarnings("FieldCanBeLocal")
     private final Instance script;
     private final ExportFunction entrypoint;
@@ -90,12 +90,12 @@ public final class LinkedMachine {
                 .get(name);
     }
 
-    <T> T acquireResource(int id, Class<T> clazz) {
-        return checkResource(id, this.resources.remove(id), clazz);
+    /* package-private */ <T> T acquireResource(int id, Class<T> clazz) {
+        return readResource(id, this.resources.remove(id), clazz);
     }
 
-    <T> T borrowResource(int id, Class<T> clazz) {
-        return checkResource(id, this.resources.get(id), clazz);
+    /* package-private */ <T> T borrowResource(int id, Class<T> clazz) {
+        return readResource(id, this.resources.get(id), clazz);
     }
 
     /* package-private */ int attachResource(Object resource) {
@@ -107,7 +107,7 @@ public final class LinkedMachine {
     }
 
     @SuppressWarnings("unchecked")
-    private <T> @NonNull T checkResource(int id, Object object, Class<T> clazz) {
+    private <T> @NonNull T readResource(int id, Object object, Class<T> clazz) {
         if (object == null) {
             throw new NullPointerException("Unknown resource " + id);
         }
