@@ -6,8 +6,8 @@
   ],
   "client": [
     "GameRendererMixin",
-    "GlCommandEncoderMixin",
     "MinecraftMixin",
+    "SkyRendererMixin",
     "ViewAreaMixin"
   ],
   "injectors": {

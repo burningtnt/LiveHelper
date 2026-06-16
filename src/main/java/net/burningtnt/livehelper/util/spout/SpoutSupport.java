@@ -25,7 +25,7 @@ import static java.lang.foreign.ValueLayout.JAVA_INT;
     }
 
     public static final boolean AVAILABLE;
-    public static final MethodHandle spCreateSpout, spReleaseSpout, spSendFrameBufferObject;
+    public static final MethodHandle spCreateSpout, spReleaseSpout, spSendFrameBufferObject, spSendTexture;
 
     static {
         if (SystemInfo.getCurrentPlatform() != PlatformEnum.WINDOWS) {
@@ -33,6 +33,7 @@ import static java.lang.foreign.ValueLayout.JAVA_INT;
             spCreateSpout = null;
             spReleaseSpout = null;
             spSendFrameBufferObject = null;
+            spSendTexture = null;
         } else {
             Path library;
             try {
@@ -64,6 +65,10 @@ import static java.lang.foreign.ValueLayout.JAVA_INT;
                     lookup.findOrThrow("spSendFrameBufferObject"),
                     FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_INT, JAVA_INT, JAVA_INT)
             );
+            spSendTexture = Linker.nativeLinker().downcallHandle(
+                    lookup.findOrThrow("spSendTexture"),
+                    FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_INT, JAVA_INT, JAVA_INT, JAVA_INT, JAVA_INT)
+            );
         }
     }
 
@@ -79,6 +84,14 @@ import static java.lang.foreign.ValueLayout.JAVA_INT;
     public static int sendFrameBufferObject(MemorySegment handle, int fbo, int width, int height) {
         try {
             return (int) spSendFrameBufferObject.invokeExact(handle, fbo, width, height);
+        } catch (Throwable t) {
+            throw raise(t);
+        }
+    }
+
+    public static int sendTexture(MemorySegment handle, int textureID, int textureType, int width, int height, int hostFbo) {
+        try {
+            return (int) spSendTexture.invokeExact(handle, textureID, textureType, width, height, hostFbo);
         } catch (Throwable t) {
             throw raise(t);
         }

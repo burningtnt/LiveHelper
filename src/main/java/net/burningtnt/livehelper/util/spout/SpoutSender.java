@@ -37,6 +37,19 @@ public final class SpoutSender implements AutoCloseable {
         }
     }
 
+    public void sendTexture(int textureID, int textureType, int width, int height, int hostFbo) {
+        try {
+            int code = SpoutSupport.sendTexture(this.spout, textureID, textureType, width, height, hostFbo);
+            switch (code) {
+                case 0 -> throw new RuntimeException("Unable to send Texture " + textureID);
+                case 1 -> {}
+                default -> throw new AssertionError("Unknown return value: " + code);
+            }
+        } finally {
+            Reference.reachabilityFence(this);
+        }
+    }
+
     @Override
     public void close() {
         this.cleanable.clean();
