@@ -11,6 +11,7 @@
     "@livehelper/schema": "workspace:*"
   },
   "devDependencies": {
+    "@types/node": "^24.12.2",
     "tsx": "^4.22.4"
   }
 }

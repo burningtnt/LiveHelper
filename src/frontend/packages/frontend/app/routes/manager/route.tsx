@@ -1,4 +1,6 @@
-import type { Manager, ManagerStatus } from "~/api/schema";
+import type { InputValue, Manager, ManagerStatus } from "~/api/schema";
+import InputValueEditor from "~/components/InputValueEditor";
+import { buildInputsFromDeclarations, validateAndNormalize } from "~/routes/clip/input-utils";
 import AddIcon from "@mui/icons-material/Add";
 import AddCircleOutline from "@mui/icons-material/AddCircleOutline";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -127,6 +129,9 @@ export default function ManagerRoute() {
     Record<number, ManagerStatus>
   >({});
 
+  const [addInputs, setAddInputs] = useState<InputValue[]>([]);
+  const [editInputs, setEditInputs] = useState<InputValue[]>([]);
+
   const [addOpen, setAddOpen] = useState(false);
   const addForm = useForm<ManagerFormData>({
     resolver: zodResolver(managerFormSchema),
@@ -212,6 +217,7 @@ export default function ManagerRoute() {
       queryClient.invalidateQueries({ queryKey: managersQueryKey });
       toast.success("调度器创建成功");
       addForm.reset();
+      setAddInputs([]);
       setAddOpen(false);
     },
     onError: (e) => toast.error(parseError(e)),
@@ -224,6 +230,7 @@ export default function ManagerRoute() {
       queryClient.invalidateQueries({ queryKey: managersQueryKey });
       toast.success("调度器更新成功");
       editForm.reset();
+      setEditInputs([]);
       setEditingManager(null);
       setEditOpen(false);
     },
@@ -263,6 +270,9 @@ export default function ManagerRoute() {
   // ── Callbacks ─────────────────────────────────────────────
   const handleAdd = () => {
     addForm.handleSubmit((data) => {
+      const prog = programs.find((p) => p.id === data.program);
+      const normalized = validateAndNormalize(addInputs, prog?.inputs ?? []);
+      if (!normalized) return;
       createMut.mutate({
         id: nextId,
         name: data.name,
@@ -273,7 +283,7 @@ export default function ManagerRoute() {
         height: data.height,
         fps: data.fps,
         renderDistance: data.renderDistance,
-        inputs: [],
+        inputs: normalized,
       });
     })();
   };
@@ -288,6 +298,7 @@ export default function ManagerRoute() {
       fps: mgr.fps,
       renderDistance: mgr.renderDistance,
     });
+    setEditInputs(mgr.inputs);
     setEditingManager(mgr);
     setEditOpen(true);
   };
@@ -295,6 +306,9 @@ export default function ManagerRoute() {
   const handleEdit = () => {
     if (!editingManager) return;
     editForm.handleSubmit((data) => {
+      const prog = programs.find((p) => p.id === data.program);
+      const normalized = validateAndNormalize(editInputs, prog?.inputs ?? []);
+      if (!normalized) return;
       updateMut.mutate({
         id: editingManager.id,
         data: {
@@ -307,7 +321,7 @@ export default function ManagerRoute() {
           height: data.height,
           fps: data.fps,
           renderDistance: data.renderDistance,
-          inputs: editingManager.inputs,
+          inputs: normalized,
         },
       });
     })();
@@ -482,6 +496,7 @@ export default function ManagerRoute() {
           startIcon={<AddIcon />}
           onClick={() => {
             addForm.reset();
+            setAddInputs([]);
             setAddOpen(true);
           }}
         >
@@ -494,7 +509,7 @@ export default function ManagerRoute() {
       {/* ── Add Dialog ─────────────────────────────────────── */}
       <Dialog
         open={addOpen}
-        onClose={() => { addForm.reset(); setAddOpen(false); }}
+        onClose={() => { addForm.reset(); setAddInputs([]); setAddOpen(false); }}
         maxWidth="sm"
         fullWidth
       >
@@ -521,9 +536,12 @@ export default function ManagerRoute() {
             label="调度程序"
             fullWidth
             value={addForm.watch("program") || ""}
-            onChange={(e) =>
-              addForm.setValue("program", Number(e.target.value), { shouldValidate: true })
-            }
+            onChange={(e) => {
+              const progId = Number(e.target.value);
+              addForm.setValue("program", progId, { shouldValidate: true });
+              const prog = programs.find((p) => p.id === progId);
+              setAddInputs(prog ? buildInputsFromDeclarations(prog.inputs) : []);
+            }}
             error={!!addForm.formState.errors.program}
             helperText={addForm.formState.errors.program?.message}
           >
@@ -583,6 +601,18 @@ export default function ManagerRoute() {
               helperText={addForm.formState.errors.renderDistance?.message}
             />
           </Box>
+          {addForm.watch("program") ? (
+            <Box>
+              <Typography variant="subtitle2" gutterBottom>输入值</Typography>
+              <InputValueEditor
+                declarations={programs.find((p) => p.id === addForm.watch("program"))?.inputs ?? []}
+                values={addInputs}
+                onChange={setAddInputs}
+              />
+            </Box>
+          ) : (
+            <Typography variant="body2" color="text.secondary">请先选择调度程序以配置输入值</Typography>
+          )}
         </DialogContent>
         <DialogActions>
           <Button onClick={() => { addForm.reset(); setAddOpen(false); }}>取消</Button>
@@ -599,7 +629,7 @@ export default function ManagerRoute() {
       {/* ── Edit Dialog ─────────────────────────────────────── */}
       <Dialog
         open={editOpen}
-        onClose={() => { editForm.reset(); setEditOpen(false); }}
+        onClose={() => { editForm.reset(); setEditInputs([]); setEditOpen(false); }}
         maxWidth="sm"
         fullWidth
       >
@@ -626,9 +656,12 @@ export default function ManagerRoute() {
             label="调度程序"
             fullWidth
             value={editForm.watch("program") || ""}
-            onChange={(e) =>
-              editForm.setValue("program", Number(e.target.value), { shouldValidate: true })
-            }
+            onChange={(e) => {
+              const progId = Number(e.target.value);
+              editForm.setValue("program", progId, { shouldValidate: true });
+              const prog = programs.find((p) => p.id === progId);
+              setEditInputs(prog ? buildInputsFromDeclarations(prog.inputs) : []);
+            }}
             error={!!editForm.formState.errors.program}
             helperText={editForm.formState.errors.program?.message}
           >
@@ -688,6 +721,18 @@ export default function ManagerRoute() {
               helperText={editForm.formState.errors.renderDistance?.message}
             />
           </Box>
+          {editForm.watch("program") ? (
+            <Box>
+              <Typography variant="subtitle2" gutterBottom>输入值</Typography>
+              <InputValueEditor
+                declarations={programs.find((p) => p.id === editForm.watch("program"))?.inputs ?? []}
+                values={editInputs}
+                onChange={setEditInputs}
+              />
+            </Box>
+          ) : (
+            <Typography variant="body2" color="text.secondary">请先选择调度程序以配置输入值</Typography>
+          )}
         </DialogContent>
         <DialogActions>
           <Button onClick={() => { editForm.reset(); setEditOpen(false); }}>取消</Button>

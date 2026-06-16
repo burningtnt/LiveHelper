@@ -18,6 +18,8 @@ import MenuItem from "@mui/material/MenuItem";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import ComponentCard from "~/components/ComponentCard";
+import InputValueEditor from "~/components/InputValueEditor";
+import { buildInputsFromDeclarations, validateAndNormalize } from "./input-utils";
 import type { Clip, InputDeclaration, InputValue } from "~/api/schema";
 import {
     clipsQueryKey,
@@ -28,7 +30,6 @@ import {
     updateClip,
 } from "~/api/api";
 import { parseError } from "~/utils";
-import InputValueEditor from "./InputValueEditor";
 
 // ── Zod schema ──────────────────────────────────────────────
 const clipFormSchema = z.object({
@@ -46,67 +47,7 @@ const clipFormSchema = z.object({
 });
 type ClipFormData = z.infer<typeof clipFormSchema>;
 
-/**
- * Validate and normalize values before sending to parent.
- * - Validates all non-multivalue declarations have a non-null value (aborts with toast if not)
- * - For each multivalue declaration: re-index IDs, calculate count, insert count value
- * - Ensures every InputValue carries the correct `type` matching its declaration
- * Returns the normalized array, or `null` if validation failed.
- */
-function validateAndNormalize(
-    raw: InputValue[],
-    declarations: InputDeclaration[],
-): InputValue[] | null {
-    function findIndexedValues(values: InputValue[], baseId: string): InputValue[] {
-        const prefix = `${baseId}.`;
-        return values
-            .filter((v) => v.id.startsWith(prefix))
-            .sort((a, b) => {
-                const ai = Number(a.id.slice(prefix.length));
-                const bi = Number(b.id.slice(prefix.length));
-                return ai - bi;
-            });
-    }
 
-    const result: InputValue[] = [];
-
-    for (const decl of declarations) {
-        if (decl.multivalue) {
-            // Collect indexed values, re-index consecutively
-            const indexed = findIndexedValues(raw, decl.id);
-            for (const inner of indexed) {
-                if (inner.type !== decl.type || inner.value === null) {
-                    const typeHint = decl.type === "pose" ? "坐标和视角，必须填写" : "数字";
-                    toast.warning(`${decl.name} 的输入类型为${typeHint}`);
-                    return null
-                }
-            }
-            const reindexed = indexed.map((iv, i) => ({
-                ...iv,
-                id: `${decl.id}.${i}`,
-            }));
-            // Insert count value
-            result.push({ id: decl.id, type: "number" as const, value: reindexed.length });
-            result.push(...reindexed);
-        } else {
-            const match = raw.find((v) => v.id === decl.id);
-            if (!match || match.value === null) {
-                const typeHint = decl.type === "pose" ? "坐标和视角，必须填写" : "数字";
-                toast.warning(`${decl.name} 的输入类型为${typeHint}`);
-                return null;
-            }
-            result.push({ ...match, type: decl.type });
-        }
-    }
-
-    return result;
-}
-
-function buildInputsFromDeclarations(declarations: InputDeclaration[]): InputValue[] {
-    return declarations.map((decl) => {
-        return { id: decl.id, type: decl.type, value: null };
-    });
-}
 
 export default function ClipRoute() {
     const queryClient = useQueryClient();

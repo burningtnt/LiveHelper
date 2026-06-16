@@ -4,6 +4,7 @@ import com.mojang.blaze3d.pipeline.MainTarget;
 import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.blaze3d.systems.RenderSystem;
 import net.burningtnt.livehelper.MainScheduler;
+import net.burningtnt.livehelper.api.render.TextureMixer;
 import net.burningtnt.livehelper.util.AngleConvert;
 import net.burningtnt.livehelper.util.spout.SpoutSender;
 import net.minecraft.client.Camera;
@@ -67,6 +68,7 @@ import java.util.concurrent.TimeUnit;
     private final SpoutSender sender;
     private final long startNs = System.nanoTime();
 
+    private final TextureMixer renderer;
     private long futureNs;
     private Future<@Nullable List<ActiveStream.RenderStep>> future;
     private long lastPerformanceWarning = -1;
@@ -80,6 +82,7 @@ import java.util.concurrent.TimeUnit;
         this.renderTargets[0] = new MainTarget(config.width(), config.height(), useStencil);
         this.executor = Executors.newSingleThreadExecutor(Thread.ofPlatform().name("LiveHelper Camera Worker for " + config.name()).daemon().factory());
         this.sender = new SpoutSender(config.name());
+        this.renderer = new TextureMixer(config.width(), config.height());
 
         requestFrame(0);
 
@@ -137,7 +140,8 @@ import java.util.concurrent.TimeUnit;
                 case ActiveStream.RenderStep.Mix(int left, int right, int target, float progress) -> {
                     MainTarget leftTarget = ensureTarget(left), rightTarget = ensureTarget(right), targetTarget = ensureTarget(target);
                     progress = Float.isNaN(progress) ? 0.5f : Math.clamp(progress, 0f, 1f);
-                    // TODO: 将 leftTarget 和 rightTarget 按照 progress 指定的比例混合，输出到 targetTarget。
+
+                    renderer.mix(leftTarget.getColorTextureView(), rightTarget.getColorTextureView(), progress, targetTarget.getColorTextureView());
                 }
                 case ActiveStream.RenderStep.Display(int target) -> {
                     SpoutRenderer.blitSend(sender, Objects.requireNonNull(ensureTarget(target).getColorTextureView()));
@@ -275,6 +279,7 @@ import java.util.concurrent.TimeUnit;
     public void close() {
         stopped = true;
 
+        renderer.close();
         for (MainTarget target : renderTargets) {
             if (target != null) {
                 target.destroyBuffers();

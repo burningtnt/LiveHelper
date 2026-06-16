@@ -197,6 +197,7 @@ async function main(): Promise<void> {
 
         // Generate ID
         const id = generateId(content, usedIds);
+        const hexId = id.toString(16);
 
         // Build full Program object
         const program: Program = {
@@ -230,31 +231,31 @@ async function main(): Promise<void> {
 
         // Write program JSON (pretty-printed)
         writeFileSync(
-          resolve(programsDir, `${id}.json`),
+          resolve(programsDir, `${hexId}.json`),
           JSON.stringify(program, null, 2),
           "utf-8",
         );
-        writtenFiles.push(`storage.programs/${id}.json`);
+        writtenFiles.push(`storage.programs/${hexId}.json`);
 
         // Write script text (raw)
         writeFileSync(
-          resolve(scriptsDir, `${id}.text`),
+          resolve(scriptsDir, `${hexId}.text`),
           scriptContent,
           "utf-8",
         );
-        writtenFiles.push(`storage.program-scripts/${id}.text`);
+        writtenFiles.push(`storage.program-scripts/${hexId}.text`);
 
         // Write compiled wasm binary
         if (binary) {
           writeFileSync(
-            resolve(binariesDir, `${id}.wasm`),
+            resolve(binariesDir, `${hexId}.wasm`),
             Buffer.from(binary),
           );
-          writtenFiles.push(`storage.program-binaries/${id}.wasm`);
+          writtenFiles.push(`storage.program-binaries/${hexId}.wasm`);
         }
 
         console.log(
-          `  ✓ ${fileName} → id=${id}, script=${scriptContent.length} chars, binary=${binary?.byteLength ?? 0} bytes`,
+          `  ✓ ${fileName} → id=${id} (0x${hexId}), script=${scriptContent.length} chars, binary=${binary?.byteLength ?? 0} bytes`,
         );
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
