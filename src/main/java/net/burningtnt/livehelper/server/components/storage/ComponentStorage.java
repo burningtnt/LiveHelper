@@ -159,7 +159,7 @@ public final class ComponentStorage {
                 try {
                     String[] files;
                     try (InputStream is = ComponentStorage.class.getResourceAsStream(STORE_ROOT + "index.json")) {
-                        files = GSON.fromJson(new String(Objects.requireNonNull(is).readAllBytes(), StandardCharsets.UTF_8), String[].class);
+                        files = GSON.fromJson(new String(Objects.requireNonNull(is, LiveHelper.MESSAGE).readAllBytes(), StandardCharsets.UTF_8), String[].class);
                     }
 
                     Path root = ROOT.get();

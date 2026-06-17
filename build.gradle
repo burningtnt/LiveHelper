@@ -178,6 +178,13 @@ sourceSets.main.resources.srcDir generateModMetadata
 neoForge.ideSyncTask generateModMetadata
 
 var buildFrontend = tasks.register("buildFrontend") {
+    var condition = !providers.gradleProperty("skipBuildFrontend")
+            .map { it.toBoolean() }
+            .orElse(false)
+            .get()
+
+    onlyIf { condition }
+
     def injected = project.objects.newInstance(InjectedExecOps)
 
     doLast {
@@ -199,6 +206,8 @@ var buildFrontend = tasks.register("buildFrontend") {
 }
 
 tasks.shadowJar {
+    dependsOn(buildFrontend)
+
     configurations = [project.configurations.jij]
     enableAutoRelocation = true
     relocationPrefix = "net.burningtnt.livehelper.internal"
@@ -207,8 +216,6 @@ tasks.shadowJar {
 }
 
 tasks.processResources {
-    dependsOn(buildFrontend)
-
     from('src/frontend/packages/frontend/build/client') {
         into('/assets/live_helper/webassets')
     }

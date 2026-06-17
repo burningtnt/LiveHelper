@@ -41,7 +41,7 @@ import static java.lang.foreign.ValueLayout.JAVA_INT;
                 try (InputStream is = SpoutSupport.class.getResourceAsStream("/assets/live_helper/libSpoutBinding.dll");
                      OutputStream os = Files.newOutputStream(library)
                 ) {
-                    Objects.requireNonNull(is, "Missing libSpoutBinding.dll").transferTo(os);
+                    Objects.requireNonNull(is, "Missing libSpoutBinding.dll, SHOULD NOT be HERE").transferTo(os);
                 }
             } catch (IOException e) {
                 throw new ExceptionInInitializerError(e);

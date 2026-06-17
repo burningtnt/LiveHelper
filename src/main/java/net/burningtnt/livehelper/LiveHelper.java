@@ -15,6 +15,8 @@ import java.util.concurrent.locks.LockSupport;
 public final class LiveHelper {
     public static final String MODID = "live_helper";
 
+    public static final String MESSAGE = "Cannot setup LiveHelper, probably in development environment?";
+
     public LiveHelper(ModContainer container) {
         container.registerExtensionPoint(IConfigScreenFactory.class, ConfigurationScreen::new);
 

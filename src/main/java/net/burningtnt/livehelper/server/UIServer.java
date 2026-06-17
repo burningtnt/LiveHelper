@@ -9,6 +9,7 @@ import io.jooby.Server;
 import io.jooby.StatusCode;
 import io.jooby.exception.StatusCodeException;
 import io.jooby.handler.AssetSource;
+import net.burningtnt.livehelper.LiveHelper;
 import net.burningtnt.livehelper.server.components.Clip;
 import net.burningtnt.livehelper.server.components.InputValue;
 import net.burningtnt.livehelper.server.components.Manager;
@@ -97,7 +98,7 @@ public final class UIServer extends Jooby {
                 ctx.setResponseCode(503);
 
                 try (InputStream is = UIServer.class.getResourceAsStream("/assets/live_helper/fatal.html")) {
-                    String content = new String(Objects.requireNonNull(is).readAllBytes(), StandardCharsets.UTF_8)
+                    String content = new String(Objects.requireNonNull(is, LiveHelper.MESSAGE).readAllBytes(), StandardCharsets.UTF_8)
                             .replace("{ERROR_ID}", "SPOUT_UNAVAILABLE");
                     ctx.send(content);
                 }
@@ -413,7 +414,13 @@ public final class UIServer extends Jooby {
             });
         }));
 
-        assets("/**", AssetSource.create(UIServer.class.getClassLoader(), "/assets/live_helper/webassets"));
+        AssetSource asset;
+        if (FMLLoader.getCurrentOrNull() == null || !FMLEnvironment.isProduction()) {
+            asset = AssetSource.create(Path.of("../src/frontend/packages/frontend/build/client"));
+        } else {
+            asset = AssetSource.create(UIServer.class.getClassLoader(), "/assets/live_helper/webassets");
+        }
+        assets("/**", asset);
     }
 
     private Object encodeActivation(ProgramScheduler.ManagerStatus status) {
