@@ -408,7 +408,7 @@ public final class UIServer extends Jooby {
 
             error(ComponentException.class, (ctx, cause, _) -> {
                 ctx.setResponseCode(StatusCode.SERVER_ERROR);
-                ctx.send(ComponentStorage.GSON.toJson(((ComponentException) cause).getType().toRoute()));
+                ctx.send(ComponentStorage.GSON.toJson(((ComponentException) cause).collect()));
                 LOGGER.warn("Uncaught component exception.", cause);
             });
         }));
@@ -424,7 +424,7 @@ public final class UIServer extends Jooby {
                 object.addProperty("status", "error");
                 JsonArray payload = new JsonArray();
                 if (exception instanceof ComponentException e) {
-                    for (String part : e.getType().toRoute()) {
+                    for (String part : e.collect()) {
                         payload.add(part);
                     }
                 } else {

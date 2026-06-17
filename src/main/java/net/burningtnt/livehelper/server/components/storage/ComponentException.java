@@ -25,6 +25,37 @@ public final class ComponentException extends Exception {
         return type;
     }
 
+    public List<String> collect() {
+        List<String> result = new ArrayList<>();
+        collect(result);
+        return result;
+    }
+
+    private void collect(List<String> result) {
+        Class<? extends Type> clazz = this.type.getClass();
+        result.add(CaseFormat.UPPER_CAMEL.to(CaseFormat.LOWER_UNDERSCORE, clazz.getSimpleName()));
+
+        RecordComponent[] components = clazz.getRecordComponents();
+        for (RecordComponent component : components) {
+            Object v;
+            try {
+                v = component.getAccessor().invoke(this);
+            } catch (IllegalAccessException | InvocationTargetException e) {
+                throw new AssertionError(e);
+            }
+            result.add(Objects.toString(v));
+        }
+
+        Throwable cause = this.getCause();
+        if (cause != null) {
+            if (cause instanceof ComponentException e) {
+                e.collect(result);
+            } else {
+                result.add(cause.getMessage());
+            }
+        }
+    }
+
     public sealed interface Type {
         default ComponentException make() {
             return new ComponentException(this);
@@ -32,24 +63,6 @@ public final class ComponentException extends Exception {
 
         default ComponentException make(Throwable cause) {
             return new ComponentException(this, cause);
-        }
-
-        default List<String> toRoute() {
-            Class<? extends Type> clazz = this.getClass();
-            RecordComponent[] components = clazz.getRecordComponents();
-            List<String> routes = new ArrayList<>(components.length + 1);
-
-            routes.add(CaseFormat.UPPER_CAMEL.to(CaseFormat.LOWER_UNDERSCORE, clazz.getSimpleName()));
-            for (RecordComponent component : components) {
-                Object v;
-                try {
-                    v = component.getAccessor().invoke(this);
-                } catch (IllegalAccessException | InvocationTargetException e) {
-                    throw new AssertionError(e);
-                }
-                routes.add(Objects.toString(v));
-            }
-            return routes;
         }
     }
 
@@ -71,6 +84,6 @@ public final class ComponentException extends Exception {
     public record MissingEntry(int programID) implements Type {
     }
 
-    public record NotCompiled(int programID) implements Type {
+    public record ExecutionFailure(int programID) implements Type {
     }
 }

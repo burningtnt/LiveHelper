@@ -27,9 +27,10 @@ import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
 
 /* package-private */ final class LinkedMachine {
+    private final int programID;
+    private final ExportFunction entrypoint;
     @SuppressWarnings("FieldCanBeLocal")
     private final Instance script;
-    private final ExportFunction entrypoint;
     private final Map<String, InputValue> inputs;
     private final Int2ObjectMap<Object> resources = new Int2ObjectOpenHashMap<>();
 
@@ -41,6 +42,7 @@ import java.util.concurrent.ThreadLocalRandom;
 
         WasmModule module = Parser.parse(storage.binaries.get(programID).buffer());
 
+        this.programID = programID;
         this.inputs = resolveInputs(program, inputs);
         this.script = Instance.builder(module)
                 .withMemoryLimits(new MemoryLimits(4, 32, false))
@@ -58,9 +60,17 @@ import java.util.concurrent.ThreadLocalRandom;
         }
     }
 
+    /* package-private */ <T> T executeProgram(Class<T> clazz, List<InputValue> dynamicInputs) throws ComponentException {
+        try {
+            return executeProgram0(clazz, dynamicInputs);
+        } catch (RuntimeException e) {
+            throw new ComponentException.ExecutionFailure(this.programID).make(e);
+        }
+    }
+
     private static final ScopedValue<Map<String, InputValue>> ACTIVATE_INPUTS = ScopedValue.newInstance();
 
-    /* package-private */ <T> T executeProgram(Class<T> clazz, List<InputValue> dynamicInputs) throws ComponentException {
+    private <T> T executeProgram0(Class<T> clazz, List<InputValue> dynamicInputs) {
         Map<String, InputValue> activatedInputs;
         if (dynamicInputs.isEmpty()) {
             activatedInputs = this.inputs;
