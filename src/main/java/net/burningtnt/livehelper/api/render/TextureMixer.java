@@ -41,10 +41,10 @@ public final class TextureMixer implements AutoCloseable {
 
     public TextureMixer(int width, int height) {
         BufferBuilder buffer = Tesselator.getInstance().begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX);
-        buffer.addVertex(0.0f, 0.0f, 500.0f).setUv(0, 0);
-        buffer.addVertex(width, 0.0f, 500.0f).setUv(1, 0);
-        buffer.addVertex(width, height, 500.0f).setUv(1, 1);
-        buffer.addVertex(0.0f, height, 500.0f).setUv(0, 1);
+        buffer.addVertex(0, 0, 0).setUv(0, 0);
+        buffer.addVertex(width, 0, 0).setUv(1, 0);
+        buffer.addVertex(width, height, 0).setUv(1, 1);
+        buffer.addVertex(0, height, 0).setUv(0, 1);
         try (MeshData mesh = buffer.buildOrThrow()) {
             this.vertexBuffer = RenderSystem.getDevice().createBuffer(() -> "screen blit mesh vertex buffer", GpuBuffer.USAGE_VERTEX, mesh.vertexBuffer());
             this.indexCount = mesh.drawState().indexCount();
