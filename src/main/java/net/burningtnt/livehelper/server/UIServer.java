@@ -2,11 +2,9 @@ package net.burningtnt.livehelper.server;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
-import io.jooby.Context;
 import io.jooby.ExecutionMode;
 import io.jooby.Jooby;
 import io.jooby.MediaType;
-import io.jooby.Route;
 import io.jooby.Server;
 import io.jooby.StatusCode;
 import io.jooby.exception.StatusCodeException;
@@ -40,7 +38,6 @@ import org.slf4j.LoggerFactory;
 import org.slf4j.helpers.NOPLogger;
 
 import java.io.InputStream;
-import java.lang.ref.Reference;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
