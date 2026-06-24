@@ -216,6 +216,8 @@ tasks.shadowJar {
 }
 
 tasks.processResources {
+    mustRunAfter(buildFrontend)
+
     from('src/frontend/packages/frontend/build/client') {
         into('/assets/live_helper/webassets')
     }
