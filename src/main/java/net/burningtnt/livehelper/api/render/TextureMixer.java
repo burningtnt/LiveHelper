@@ -59,7 +59,8 @@ public final class TextureMixer implements AutoCloseable {
     }
 
     public void mix(GpuTextureView left, GpuTextureView right, float progress, GpuTextureView target) {
-        RenderSystem.backupProjectionMatrix();
+        GpuBufferSlice savedProjectionMatrixBuffer = RenderSystem.getProjectionMatrixBuffer();
+        ProjectionType savedProjectionType = RenderSystem.getProjectionType();
 
         GpuBufferSlice dynamicTransforms = RenderSystem.getDynamicUniforms()
                 .writeTransform(new Matrix4f(), new Vector4f(1.0F, 1.0F, 1.0F, progress), new Vector3f(), new Matrix4f());
@@ -75,7 +76,7 @@ public final class TextureMixer implements AutoCloseable {
             renderpass.drawIndexed(0, 0, indexCount, 1);
         }
 
-        RenderSystem.restoreProjectionMatrix();
+        RenderSystem.setProjectionMatrix(savedProjectionMatrixBuffer, savedProjectionType);
     }
 
     @Override
