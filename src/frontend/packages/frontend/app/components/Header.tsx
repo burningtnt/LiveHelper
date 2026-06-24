@@ -11,7 +11,8 @@ export function Header() {
   const locations = [
     ["程序", "/"],
     ["分镜头", "/clip"],
-    ["调度器", "/manager"]
+    ["调度器", "/manager"],
+    ["看板", "/dashboard"],
   ];
 
   const [value, setValue] = useState(0);

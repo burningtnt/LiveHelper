@@ -2,6 +2,7 @@
 .env
 node_modules
 .react-router
+.pnpm-store
 build
 dist
 

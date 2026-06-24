@@ -16,6 +16,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
@@ -79,7 +80,9 @@ public abstract class ComponentStorageBucket<T> {
     }
 
     public List<T> getAll() {
-        return new ArrayList<>(storage.values());
+        List<T> v = new ArrayList<>(storage.values());
+        v.sort(Comparator.comparingInt(this::getID));
+        return v;
     }
 
     public void put(T object) throws ComponentException {

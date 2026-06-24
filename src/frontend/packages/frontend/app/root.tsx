@@ -11,6 +11,7 @@ import {
   Outlet,
   Scripts,
   ScrollRestoration,
+  useLocation,
 } from "react-router";
 import { AppTheme } from "./components/AppTheme";
 import { Header } from "./components/Header";
@@ -54,9 +55,12 @@ export function Layout({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
+  const location = useLocation();
+  const hideHeader = location.pathname.startsWith("/dashboard/");
+
   return (
     <Stack className="flex h-screen">
-      <Header />
+      {!hideHeader && <Header />}
       <Box className="flex-1">
         <Outlet />
       </Box>

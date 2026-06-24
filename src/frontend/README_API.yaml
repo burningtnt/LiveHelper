@@ -1,10 +1,10 @@
 openapi: 3.0.3
 
 servers:
-  - url: http:/<LiveHelper Local Server>/api/v1
+  - url: http:/<LiveHelper Local Server>/api/
 
 security:
-  - Cookie: [ ]
+  - Cookie: []
 
 info:
   title: Live Helper API
@@ -25,6 +25,8 @@ tags:
     description: 配置一系列输入 (Input) 实参和一个调度程序, 向按照当前时间, 激活一个或多个分镜头 (Clip), 输出多个画面或将多个渲染结果合并输出为一个画面。
   - name: 请求队列
     description: 前端界面可主动请求用户在游戏内进行一些操作。
+  - name: 看板
+    description: 储存用户配置的看板信息
 
 paths:
   /v1/program:
@@ -46,12 +48,13 @@ paths:
       tags:
         - 程序
       requestBody:
+        required: true
         content:
           application/json:
             schema:
               $ref: '#/components/schemas/Program'
       responses:
-        '204':
+        '201':
           description: 成功创建
         '409':
           description: 新创建对象的 ID 与已有某对象的 ID 重复
@@ -98,7 +101,7 @@ paths:
           description: 更新成功
         '404':
           description: 找不到对应 ID 标识的程序
-        '401':
+        '400':
           description: 请求体和 URL 中的程序 ID 不匹配
     delete:
       summary: 删除当前程序
@@ -157,7 +160,7 @@ paths:
             schema:
               type: string
       responses:
-        '204':
+        '201':
           description: 更新成功
         '404':
           description: 找不到对应 ID 标识的程序
@@ -205,16 +208,17 @@ paths:
       tags:
         - 分镜头
       requestBody:
+        required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/Program'
+              $ref: '#/components/schemas/Clip'
       responses:
-        '204':
+        '201':
           description: 成功
         '409':
           description: 新创建对象的 ID 与已有某对象的 ID 重复
-        '401':
+        '400':
           description: 请求体中技法程序不存在
   /v1/clip/{id}:
     get:
@@ -259,7 +263,7 @@ paths:
           description: 更新成功
         '404':
           description: 找不到对应 ID 标识的分镜头
-        '401':
+        '400':
           description: 请求体和 URL 中的分镜头 ID 不匹配，或请求体中技法程序不存在
     delete:
       summary: 删除当前分镜头
@@ -297,16 +301,17 @@ paths:
       tags:
         - 调度器
       requestBody:
+        required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/Program'
+              $ref: '#/components/schemas/Manager'
       responses:
-        '204':
+        '201':
           description: 成功
         '409':
           description: 新创建对象的 ID 与已有某对象的 ID 重复
-        '401':
+        '400':
           description: 请求体中技法程序不存在，或分镜头不存在
   /v1/manager/{id}:
     get:
@@ -351,7 +356,7 @@ paths:
           description: 更新成功
         '404':
           description: 找不到对应 ID 标识的调度器
-        '401':
+        '400':
           description: 请求体和 URL 中的调度器 ID 不匹配，或请求体中调度程序不存在
     delete:
       summary: 删除当前调度器
@@ -452,6 +457,97 @@ paths:
               schema:
                 $ref: '#/components/schemas/InputValue'
 
+  /v1/dashboard:
+    get:
+      summary: 罗列全部看板的信息
+      tags:
+        - 看板
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Dashboard'
+    post:
+      summary: 创建一个新的看板
+      tags:
+        - 看板
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Dashboard'
+      responses:
+        '201':
+          description: 成功创建
+        '409':
+          description: 新创建对象的 ID 与已有某对象的 ID 重复
+  /v1/dashboard/{id}:
+    get:
+      summary: 获取当前看板的信息
+      tags:
+        - 看板
+      parameters:
+        - name: id
+          description: 看板 ID
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Dashboard'
+        '404':
+          description: 找不到对应 ID 标识的看板
+    patch:
+      summary: 更新当前看板的信息
+      tags:
+        - 看板
+      parameters:
+        - name: id
+          description: 看板 ID
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Dashboard'
+      responses:
+        '204':
+          description: 更新成功
+        '404':
+          description: 找不到对应 ID 标识的看板
+        '400':
+          description: 请求体和 URL 中的看板 ID 不匹配
+    delete:
+      summary: 删除当前看板
+      tags:
+        - 看板
+      parameters:
+        - name: id
+          description: 看板 ID
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '204':
+          description: 删除成功
+        '404':
+          description: 找不到对应 ID 标识的看板
+
 components:
   securitySchemes:
     Cookie:
@@ -478,6 +574,11 @@ components:
           description: |
             是否启用多值输入。
             若是，输入 <id> 会为 f32 类型，代表输入的个数；输入 <id>.<index> 为该参数类型，代表各个输入的值
+      required:
+        - id
+        - name
+        - description
+        - multivalue
     NumberInputDeclaration:
       allOf:
         - $ref: '#/components/schemas/BaseInputDeclaration'
@@ -488,6 +589,8 @@ components:
               type: string
               enum:
                 - number
+          required:
+            - type
     PoseInputDeclaration:
       allOf:
         - $ref: '#/components/schemas/BaseInputDeclaration'
@@ -498,6 +601,8 @@ components:
               type: string
               enum:
                 - pose
+          required:
+            - type
 
     InputValue:
       type: array
@@ -533,8 +638,20 @@ components:
                     type: number
                   qw:
                     type: number
+                required:
+                  - x
+                  - y
+                  - z
+                  - qx
+                  - qy
+                  - qz
+                  - qw
               - type: number
                 description: f32 类型参数
+        required:
+          - id
+          - type
+          - value
 
     Program:
       type: object
@@ -563,6 +680,12 @@ components:
               - $ref: '#/components/schemas/PoseInputDeclaration'
             discriminator:
               propertyName: type
+      required:
+        - id
+        - name
+        - description
+        - usage
+        - inputs
 
     Clip:
       type: object
@@ -577,13 +700,20 @@ components:
           type: string
           description: 分镜头的人类可读描述
         duration:
-          type: number
+          type: integer
           description: 分镜头持续的毫秒数，必须为正整数
         technique:
-          type: number
+          type: integer
           description: 分镜头所用到技法程序的 ID
         inputs:
           $ref: '#/components/schemas/InputValue'
+      required:
+        - id
+        - name
+        - description
+        - duration
+        - technique
+        - inputs
 
     Manager:
       type: object
@@ -619,6 +749,17 @@ components:
           description: 输出流的渲染距离（区块），推荐为 2
         inputs:
           $ref: '#/components/schemas/InputValue'
+      required:
+        - id
+        - name
+        - description
+        - clips
+        - program
+        - width
+        - height
+        - fps
+        - render_distance
+        - inputs
 
     ManagerDisabled:
       type: object
@@ -628,6 +769,8 @@ components:
           type: string
           enum:
             - disabled
+      required:
+        - status
     ManagerRunning:
       type: object
       description: 运行中
@@ -636,6 +779,8 @@ components:
           type: string
           enum:
             - running
+      required:
+        - status
     ManagerError:
       type: object
       description: 错误
@@ -648,3 +793,76 @@ components:
           type: array
           items:
             type: string
+      required:
+        - status
+        - error
+
+    Dashboard:
+      type: object
+      description: |
+        一个看板对象。
+        看板采用的棋盘格布局，一个内容必须占用整数边长的棋盘格正方形。
+      properties:
+        id:
+          type: integer
+          description: 看板的唯一 ID
+        name:
+          type: string
+          description: 看板的名称
+        nodes:
+          type: array
+          description: 看板的内容
+          items:
+            allOf:
+              - type: object
+                description: 一个内容对象
+                properties:
+                  left:
+                    type: integer
+                  right:
+                    type: integer
+                  up:
+                    type: integer
+                  down:
+                    type: integer
+                    description: |
+                      从左到右、从上到下，从 0 开始的下标闭区间。
+                      例如，left=0, right=0, up=0, down=0 代表内容占用左上角的一个格子。
+                required:
+                  - left
+                  - right
+                  - up
+                  - down
+              - anyOf:
+                  - type: object
+                    description: 一个文本内容对象
+                    properties:
+                      type:
+                        type: string
+                        enum:
+                          - text
+                      content:
+                        type: string
+                        description: 文本内容
+                    required:
+                      - type
+                      - content
+                  - type: object
+                    description: 一个调度器开关内容对象
+                    properties:
+                      type:
+                        type: string
+                        enum:
+                          - switch
+                      manager:
+                        type: integer
+                        description: 调度器的 ID
+                    required:
+                      - type
+                      - manager
+                discriminator:
+                  propertyName: type
+      required:
+        - id
+        - name
+        - nodes

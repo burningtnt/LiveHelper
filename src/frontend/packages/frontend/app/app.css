@@ -13,3 +13,28 @@
   --color-muted-foreground: var(--color-zinc-400);
   --color-border: var(--color-zinc-800);
 }
+
+@layer base {
+  body {
+    overflow-x: hidden;
+  }
+}
+
+@layer components {
+  .grid-stack {
+    outline: 1px solid var(--color-border);
+    border-radius: 6px;
+    overflow-x: hidden;
+    background-image:
+      linear-gradient(to right, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+    background-size: calc(100% / 12) 100%;
+  }
+  .grid-stack-item {
+    outline: 1px solid var(--color-border);
+    border-radius: 6px;
+    background: var(--color-surface);
+  }
+  .grid-stack-item-content {
+    border-radius: 6px;
+  }
+}

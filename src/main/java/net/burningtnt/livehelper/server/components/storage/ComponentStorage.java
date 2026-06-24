@@ -9,6 +9,8 @@ import com.google.gson.stream.JsonReader;
 import com.google.gson.stream.JsonWriter;
 import net.burningtnt.livehelper.LiveHelper;
 import net.burningtnt.livehelper.server.components.Clip;
+import net.burningtnt.livehelper.server.components.Dashboard;
+import net.burningtnt.livehelper.server.components.InputValue;
 import net.burningtnt.livehelper.server.components.Manager;
 import net.burningtnt.livehelper.server.components.Program;
 import net.burningtnt.livehelper.server.components.ProgramBinary;
@@ -34,6 +36,8 @@ import java.util.concurrent.CompletableFuture;
 public final class ComponentStorage {
     public static final Gson GSON = new GsonBuilder()
             .setPrettyPrinting()
+            .registerTypeAdapterFactory(Dashboard.Node.DISPATCH_CONFIGURATION.adapter())
+            .registerTypeAdapterFactory(InputValue.DISPATCH_CONFIGURATION.adapter())
             .registerTypeAdapterFactory(new TypeAdapterFactory() {
                 @Override
                 public <T> TypeAdapter<T> create(Gson gson, TypeToken<T> type) {
@@ -151,6 +155,13 @@ public final class ComponentStorage {
         }
     };
 
+    public final ComponentStorageBucket<Dashboard> dashboards = new JsonStorageBucket<>("dashboards", Dashboard.class) {
+        @Override
+        protected int getID(Dashboard object) {
+            return object.id();
+        }
+    };
+
     private static final String STORE_ROOT = "/assets/live_helper/script-predefined/";
 
     public CompletableFuture<Runnable> load() {
@@ -178,7 +189,7 @@ public final class ComponentStorage {
                 }
             }
         }).thenComposeAsync(_ -> {
-            ComponentStorageBucket<?>[] buckets = {programs, scripts, binaries, clips, managers};
+            ComponentStorageBucket<?>[] buckets = {programs, scripts, binaries, clips, managers, dashboards};
             CompletableFuture<?>[] futures = new CompletableFuture[buckets.length];
             for (int i = 0; i < buckets.length; i++) {
                 futures[i] = buckets[i].load();

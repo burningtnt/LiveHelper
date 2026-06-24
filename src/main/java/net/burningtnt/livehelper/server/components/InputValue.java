@@ -1,26 +1,24 @@
 package net.burningtnt.livehelper.server.components;
 
-import com.google.gson.Gson;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
-import com.google.gson.TypeAdapter;
-import com.google.gson.TypeAdapterFactory;
-import com.google.gson.annotations.JsonAdapter;
 import com.google.gson.annotations.SerializedName;
 import com.google.gson.reflect.TypeToken;
-import com.google.gson.stream.JsonReader;
-import com.google.gson.stream.JsonWriter;
-import org.jetbrains.annotations.ApiStatus;
+import net.burningtnt.livehelper.util.gson.DispatchConfiguration;
 
 import java.io.DataOutput;
 import java.io.IOException;
-import java.util.EnumMap;
 import java.util.Map;
 import java.util.Objects;
 
-@JsonAdapter(value = InputValue.Adapter.class)
 public sealed interface InputValue {
+    DispatchConfiguration<InputValue, InputDeclaration.Type> DISPATCH_CONFIGURATION = new DispatchConfiguration<>(
+            InputValue.class, "type", InputValue::type,
+            Map.of(
+                    InputDeclaration.Type.NUMBER, TypeToken.get(Number.class),
+                    InputDeclaration.Type.STRING, TypeToken.get(Chars.class),
+                    InputDeclaration.Type.POSE, TypeToken.get(Pose.class)
+            )
+    );
+
     String id();
 
     InputDeclaration.Type type();
@@ -33,7 +31,6 @@ public sealed interface InputValue {
         void intoBuffer(DataOutput buffer) throws IOException;
     }
 
-    @JsonAdapter(value = InputValue.Adapter.class)
     record Number(
             @SerializedName("id") String id,
             @SerializedName("value") float value
@@ -54,7 +51,6 @@ public sealed interface InputValue {
         }
     }
 
-    @JsonAdapter(value = InputValue.Adapter.class)
     record Chars(
             @SerializedName("id") String id,
             @SerializedName("value") String value
@@ -76,7 +72,6 @@ public sealed interface InputValue {
         }
     }
 
-    @JsonAdapter(value = InputValue.Adapter.class)
     record Pose(
             @SerializedName("id") String id,
             @SerializedName("value") PoseInstance value
@@ -122,68 +117,6 @@ public sealed interface InputValue {
             buffer.writeFloat(value.qy);
             buffer.writeFloat(value.qz);
             buffer.writeFloat(value.qw);
-        }
-    }
-
-    @ApiStatus.Internal
-    final class Adapter implements TypeAdapterFactory {
-        private static final Map<InputDeclaration.Type, ? extends Class<? extends InputValue>> DISPATCHER = new EnumMap<>(Map.of(
-                InputDeclaration.Type.NUMBER, Number.class,
-                InputDeclaration.Type.STRING, Chars.class,
-                InputDeclaration.Type.POSE, Pose.class
-        ));
-
-        @SuppressWarnings("unchecked")
-        @Override
-        public <T> TypeAdapter<T> create(Gson gson, TypeToken<T> type) {
-            Class<? super T> clazz = type.getRawType();
-            if (clazz == InputValue.class) {
-                return (TypeAdapter<T>) createInternal(gson);
-            } else if (DISPATCHER.containsValue(clazz)) {
-                return (TypeAdapter<T>) createDelegate(gson, (TypeToken<? extends InputValue>) type);
-            }
-
-            throw new UnsupportedOperationException();
-        }
-
-        private TypeAdapter<InputValue> createInternal(Gson gson) {
-            return new TypeAdapter<>() {
-                @Override
-                public void write(JsonWriter out, InputValue value) {
-                    JsonObject tree = gson.toJsonTree(value).getAsJsonObject();
-                    tree.addProperty("type", gson.toJsonTree(value.type()).getAsString());
-                    gson.toJson(tree, out);
-                }
-
-                @Override
-                public InputValue read(JsonReader in) {
-                    JsonObject tree = JsonParser.parseReader(in).getAsJsonObject();
-                    return gson.getAdapter(DISPATCHER.get(gson.fromJson(tree.get("type").getAsString(), InputDeclaration.Type.class))).fromJsonTree(tree);
-                }
-            };
-        }
-
-        private <T extends InputValue> TypeAdapter<T> createDelegate(Gson gson, TypeToken<T> type) {
-            TypeAdapter<T> delegate = gson.getDelegateAdapter(this, type);
-            return new TypeAdapter<>() {
-                @Override
-                public void write(JsonWriter out, T value) {
-                    JsonObject tree = delegate.toJsonTree(value).getAsJsonObject();
-                    tree.addProperty("type", gson.toJsonTree(value.type()).getAsString());
-                    gson.toJson(tree, out);
-                }
-
-                @Override
-                public T read(JsonReader in) {
-                    JsonObject tree = JsonParser.parseReader(in).getAsJsonObject();
-                    T object = delegate.fromJsonTree(tree);
-                    JsonElement type = tree.get("type");
-                    if (type != null && object.type() != gson.fromJson(type.getAsString(), InputDeclaration.Type.class)) {
-                        throw new IllegalArgumentException();
-                    }
-                    return object;
-                }
-            };
         }
     }
 }

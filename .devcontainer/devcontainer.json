@@ -1,0 +1,27 @@
+{
+	"name": "liveHeleper-Frontend",
+	"build": {
+		"dockerfile": "DOCKERFILE"
+	},
+	"forwardPorts": [
+		5173
+	],
+	"runArgs": [
+		"--add-host=host.docker.internal:host-gateway"
+	],
+	"remoteUser": "node",
+	"workspaceFolder": "/workspace/",
+	"workspaceMount": "source=${localWorkspaceFolder}/src/frontend,target=/root/workspace-mount,type=bind",
+	"postAttachCommand": "sudo /usr/local/bin/start-container.sh",
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"Vizards.deepseek-v4-for-copilot"
+			],
+			"settings": {
+				"http.proxy": "http://host.docker.internal:7890",
+				"http.useLocalProxyConfiguration": false
+			}
+		}
+	}
+}

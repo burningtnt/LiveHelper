@@ -6,6 +6,22 @@ export type {
   Program,
 } from "@livehelper/schema";
 
+export interface DashboardComponent {
+  type: "text" | "switch";
+  left: number;
+  right: number;
+  up: number;
+  down: number;
+  content?: string;
+  manager?: number;
+}
+
+export interface Dashboard {
+  id: number;
+  name: string;
+  nodes: DashboardComponent[];
+}
+
 export interface PoseValue {
   x: number;
   y: number;

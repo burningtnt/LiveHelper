@@ -1,0 +1,26 @@
+FROM mcr.microsoft.com/devcontainers/typescript-node:4-24-trixie
+
+RUN mkdir -p /workspace
+# RUN chown -R node /workspace/
+
+WORKDIR /workspace
+
+RUN apt-get update && \
+    apt-get install -y unison ocaml ocaml-native-compilers make gcc libc6-dev
+
+ARG UNISON_VERSION=2.54.0
+RUN echo "Install Unison." \
+    && cd /tmp \
+    && wget https://github.com/bcpierce00/unison/archive/v$UNISON_VERSION.tar.gz \
+    && tar -xzvf v$UNISON_VERSION.tar.gz \
+    && rm v$UNISON_VERSION.tar.gz \
+    && cd unison-$UNISON_VERSION \
+    && make \
+    && cp -t /usr/local/bin ./src/unison ./src/unison-fsmonitor \
+    && cd /tmp \
+    && rm -rf unison-$UNISON_VERSION
+
+COPY start.sh /usr/local/bin/start-container.sh
+COPY unison.prf /root/.unison/devcontainer.prf
+
+RUN chmod +x /usr/local/bin/start-container.sh

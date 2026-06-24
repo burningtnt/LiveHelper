@@ -2,15 +2,18 @@ package net.burningtnt.livehelper.server;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
+import io.jooby.Context;
 import io.jooby.ExecutionMode;
 import io.jooby.Jooby;
 import io.jooby.MediaType;
+import io.jooby.Route;
 import io.jooby.Server;
 import io.jooby.StatusCode;
 import io.jooby.exception.StatusCodeException;
 import io.jooby.handler.AssetSource;
 import net.burningtnt.livehelper.LiveHelper;
 import net.burningtnt.livehelper.server.components.Clip;
+import net.burningtnt.livehelper.server.components.Dashboard;
 import net.burningtnt.livehelper.server.components.InputValue;
 import net.burningtnt.livehelper.server.components.Manager;
 import net.burningtnt.livehelper.server.components.Program;
@@ -37,8 +40,10 @@ import org.slf4j.LoggerFactory;
 import org.slf4j.helpers.NOPLogger;
 
 import java.io.InputStream;
+import java.lang.ref.Reference;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
@@ -407,6 +412,60 @@ public final class UIServer extends Jooby {
                 }
             });
 
+            get("/dashboard", _ -> storage.dashboards.getAll());
+            post("/dashboard", ctx -> {
+                Dashboard dashboard = ctx.body(Dashboard.class);
+                try {
+                    storage.dashboards.put(dashboard);
+                    throw new StatusCodeException(StatusCode.NO_CONTENT);
+                } catch (ComponentException e) {
+                    if (e.getType() instanceof ComponentException.IDDuplicate) {
+                        throw new StatusCodeException(StatusCode.CONFLICT);
+                    }
+                    throw e;
+                }
+            });
+            get("/dashboard/{id}", ctx -> {
+                int dashboardID = Integer.parseInt(Objects.requireNonNull(ctx.path("id").valueOrNull()));
+                try {
+                    return storage.dashboards.get(dashboardID);
+                } catch (ComponentException e) {
+                    if (e.getType() instanceof ComponentException.IDNotFound) {
+                        throw new StatusCodeException(StatusCode.NOT_FOUND);
+                    }
+                    throw e;
+                }
+            });
+            patch("/dashboard/{id}", ctx -> {
+                int dashboardID = Integer.parseInt(Objects.requireNonNull(ctx.path("id").valueOrNull()));
+                Dashboard dashboard = ctx.body(Dashboard.class);
+                if (dashboard.id() != dashboardID) {
+                    throw new StatusCodeException(StatusCode.BAD_REQUEST);
+                }
+                try {
+                    storage.dashboards.update(dashboard);
+                    throw new StatusCodeException(StatusCode.NO_CONTENT);
+                } catch (ComponentException e) {
+                    if (e.getType() instanceof ComponentException.IDNotFound) {
+                        throw new StatusCodeException(StatusCode.NOT_FOUND);
+                    }
+                    throw e;
+                }
+            });
+            delete("/dashboard/{id}", ctx -> {
+                int dashboardID = Integer.parseInt(Objects.requireNonNull(ctx.path("id").valueOrNull()));
+
+                try {
+                    storage.dashboards.remove(dashboardID);
+                    throw new StatusCodeException(StatusCode.NO_CONTENT);
+                } catch (ComponentException e) {
+                    if (e.getType() instanceof ComponentException.IDNotFound) {
+                        throw new StatusCodeException(StatusCode.NOT_FOUND);
+                    }
+                    throw e;
+                }
+            });
+
             error(ComponentException.class, (ctx, cause, _) -> {
                 ctx.setResponseCode(StatusCode.SERVER_ERROR);
                 ctx.send(ComponentStorage.GSON.toJson(((ComponentException) cause).collect()));
@@ -414,13 +473,18 @@ public final class UIServer extends Jooby {
             });
         }));
 
-        AssetSource asset;
+        AssetSource asset = null;
         if (FMLLoader.getCurrentOrNull() == null || !FMLEnvironment.isProduction()) {
-            asset = AssetSource.create(Path.of("../src/frontend/packages/frontend/build/client"));
+            Path path = Path.of("../src/frontend/packages/frontend/build/client");
+            if (Files.exists(path)) {
+                asset = AssetSource.create(path);
+            }
         } else {
             asset = AssetSource.create(UIServer.class.getClassLoader(), "/assets/live_helper/webassets");
         }
-        assets("/**", asset);
+        if (asset != null) {
+            assets("/**", asset);
+        }
     }
 
     private Object encodeActivation(ProgramScheduler.ManagerStatus status) {

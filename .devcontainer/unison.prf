@@ -1,0 +1,19 @@
+root = /root/workspace-mount
+root = /workspace
+
+auto = true
+batch = true
+repeat = watch
+prefer = /root/workspace-mount
+fat = true
+
+ignore = Name .DS_Store
+ignore = Name .env
+ignore = Name node_modules
+ignore = Name .react-router
+ignore = Name .pnpm-store
+ignore = Name build
+ignore = Name dist
+ignore = Name .vscode
+
+logfile = /tmp/unison.log

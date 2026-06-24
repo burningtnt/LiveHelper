@@ -1,5 +1,36 @@
 import { apiClient, formatRequest, formatResponse } from "./util";
-import type { Clip, InputValue, ManagerStatus, Program } from "./schema";
+import type { Clip, Dashboard, InputValue, ManagerStatus, Program } from "./schema";
+
+// ── Dashboard query keys ────────────────────────────────────
+export const dashboardsQueryKey = ["dashboards"] as const;
+export const dashboardQueryKey = (id: number) => ["dashboards", id] as const;
+
+// ── Dashboard CRUD ──────────────────────────────────────────
+
+export async function getDashboards(): Promise<Dashboard[]> {
+  const { data } = await apiClient.get("/dashboard");
+  return formatResponse<Dashboard[]>(data);
+}
+
+export async function getDashboard(id: number): Promise<Dashboard> {
+  const { data } = await apiClient.get(`/dashboard/${id}`);
+  return formatResponse<Dashboard>(data);
+}
+
+export async function createDashboard(dashboard: Dashboard): Promise<void> {
+  await apiClient.post("/dashboard", formatRequest(dashboard));
+}
+
+export async function updateDashboard(
+  id: number,
+  dashboard: Partial<Dashboard>,
+): Promise<void> {
+  await apiClient.patch(`/dashboard/${id}`, formatRequest(dashboard));
+}
+
+export async function deleteDashboardFromApi(id: number): Promise<void> {
+  await apiClient.delete(`/dashboard/${id}`);
+}
 
 // ── Query keys ──────────────────────────────────────────────
 export const programsQueryKey = ["programs"] as const;
