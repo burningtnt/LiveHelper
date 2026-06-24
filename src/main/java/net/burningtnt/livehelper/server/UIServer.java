@@ -8,6 +8,7 @@ import io.jooby.MediaType;
 import io.jooby.Server;
 import io.jooby.StatusCode;
 import io.jooby.exception.StatusCodeException;
+import io.jooby.handler.Asset;
 import io.jooby.handler.AssetSource;
 import net.burningtnt.livehelper.LiveHelper;
 import net.burningtnt.livehelper.server.components.Clip;
@@ -33,6 +34,7 @@ import net.neoforged.fml.loading.FMLEnvironment;
 import net.neoforged.fml.loading.FMLLoader;
 import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent;
 import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.helpers.NOPLogger;
@@ -470,18 +472,26 @@ public final class UIServer extends Jooby {
             });
         }));
 
-        AssetSource asset = null;
+        AssetSource asset;
         if (FMLLoader.getCurrentOrNull() == null || !FMLEnvironment.isProduction()) {
             Path path = Path.of("../src/frontend/packages/frontend/build/client");
             if (Files.exists(path)) {
                 asset = AssetSource.create(path);
+            } else {
+                return;
             }
         } else {
             asset = AssetSource.create(UIServer.class.getClassLoader(), "/assets/live_helper/webassets");
         }
-        if (asset != null) {
-            assets("/**", asset);
-        }
+
+        assets("/**", new AssetSource() {
+            @Override
+            @Nullable
+            public Asset resolve(@NonNull String path) {
+                Asset resolved = asset.resolve(path);
+                return resolved == null && !path.startsWith("api/") ? asset.resolve("index.html") : resolved;
+            }
+        });
     }
 
     private Object encodeActivation(ProgramScheduler.ManagerStatus status) {
