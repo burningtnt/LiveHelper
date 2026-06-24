@@ -133,8 +133,8 @@ public final class ProgramScheduler {
                             int clipID = manager.clips()[i];
                             long cacheKey = ((long) clipID << 32) | (Float.floatToIntBits(progress) & 0xFFFFFFFFL);
 
-                            int targetID = renderedClips.getOrDefault(cacheKey, Integer.MIN_VALUE);
-                            if (targetID == Integer.MIN_VALUE) {
+                            int targetID = renderedClips.getOrDefault(cacheKey, -1);
+                            if (targetID == -1) {
                                 List<InputValue> inputs = List.of(new InputValue.Number("progress", progress));
 
                                 steps.add(new RenderStep.Render(
@@ -161,7 +161,7 @@ public final class ProgramScheduler {
                     if (targetID == RenderStep.MAX_BUFFER) {
                         throw new IndexOutOfBoundsException("Requires too may targets!");
                     }
-                    currentTargetID.set(targetID + 1);
+                    currentTargetID.setPlain(targetID + 1);
                     return targetID;
                 }
             };
