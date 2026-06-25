@@ -36,7 +36,6 @@ public final class TextureMixer implements AutoCloseable {
 
     private final GpuBufferSlice projectionMatrix;
     private final int indexCount;
-    private final VertexFormat.IndexType indexType;
     private final GpuBuffer vertexBuffer;
 
     public TextureMixer(int width, int height) {
@@ -48,7 +47,6 @@ public final class TextureMixer implements AutoCloseable {
         try (MeshData mesh = buffer.buildOrThrow()) {
             this.vertexBuffer = RenderSystem.getDevice().createBuffer(() -> "screen blit mesh vertex buffer", GpuBuffer.USAGE_VERTEX, mesh.vertexBuffer());
             this.indexCount = mesh.drawState().indexCount();
-            this.indexType = mesh.drawState().indexType();
         }
 
         // noinspection resource
@@ -71,7 +69,8 @@ public final class TextureMixer implements AutoCloseable {
             renderpass.bindTexture("input1", right, RenderSystem.getSamplerCache().getClampToEdge(FilterMode.NEAREST));
             renderpass.setPipeline(MIX);
             renderpass.setVertexBuffer(0, vertexBuffer);
-            renderpass.setIndexBuffer(RenderSystem.getSequentialBuffer(VertexFormat.Mode.QUADS).getBuffer(indexCount), indexType);
+            RenderSystem.AutoStorageIndexBuffer sequentialBuffer = RenderSystem.getSequentialBuffer(VertexFormat.Mode.QUADS);
+            renderpass.setIndexBuffer(sequentialBuffer.getBuffer(indexCount), sequentialBuffer.type());
             renderpass.drawIndexed(0, 0, indexCount, 1);
         }
 
