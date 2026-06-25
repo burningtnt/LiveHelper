@@ -5,6 +5,7 @@ import com.mojang.blaze3d.GLFWErrorScope;
 import com.mojang.blaze3d.opengl.GlConst;
 import com.mojang.blaze3d.opengl.GlTexture;
 import com.mojang.blaze3d.textures.GpuTextureView;
+import net.burningtnt.livehelper.LiveHelper;
 import net.burningtnt.livehelper.util.spout.SpoutSender;
 import net.minecraft.client.Minecraft;
 import org.jetbrains.annotations.ApiStatus;
@@ -39,18 +40,24 @@ public final class SpoutRenderer {
 
     public static void blitSend(SpoutSender sender, GpuTextureView textureView) {
         int w = textureView.getWidth(0), h = textureView.getHeight(0);
-        ensureSize(w, h);
 
-        long previous = Minecraft.getInstance().getWindow().handle();
-        GLFW.glfwMakeContextCurrent(window);
-        try {
-            sender.sendTexture(
-                    (int) TEXTURE_ID.get((GlTexture) textureView.texture()), GlConst.GL_TEXTURE_2D,
-                    w, h, 0
-            );
-        } finally {
-            GLFW.glfwMakeContextCurrent(previous);
+        if (!LiveHelper.ENABLE_MULTI_CONTEXT_WORKAROUND.get()) {
+            sendTexture(sender, textureView, w, h);
+        } else {
+            ensureSize(w, h);
+
+            long previous = Minecraft.getInstance().getWindow().handle();
+            GLFW.glfwMakeContextCurrent(window);
+            try {
+                sendTexture(sender, textureView, w, h);
+            } finally {
+                GLFW.glfwMakeContextCurrent(previous);
+            }
         }
+    }
+
+    private static void sendTexture(SpoutSender sender, GpuTextureView textureView, int w, int h) {
+        sender.sendTexture((int) TEXTURE_ID.get((GlTexture) textureView.texture()), GlConst.GL_TEXTURE_2D, w, h, 0);
     }
 
     private static void ensureSize(int w, int h) {
