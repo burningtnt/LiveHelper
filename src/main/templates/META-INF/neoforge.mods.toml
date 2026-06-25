@@ -40,7 +40,14 @@ authors="Burning_TNT"
 
 # The description text for the mod (multi line!) (#mandatory)
 description='''
-Control cameras for live show
+Advanced multi-camera control panel for in-game live shows.
+
+Any other softwares can receive the video stream with Spout2.
+- OBS: Install OBS Spout2 Plugin https://github.com/Off-World-Live/obs-spout2-plugin .
+- Others: See https://leadedge.github.io/ for more softwares intergrated with Spout2.
+
+On a few legacy GPU, parts of the textures may be black if the Windows is too small.
+In this case, please enable ENABLE_MULTI_CONTEXT_WORKAROUND client config.
 '''
 
 # The [[mixins]] block allows you to declare your mixin config to FML so that it gets loaded.
