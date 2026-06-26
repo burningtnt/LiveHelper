@@ -1,11 +1,13 @@
-root = /root/workspace-mount
+root = /mnt/workspace-mount
 root = /workspace
 
 auto = true
 batch = true
 repeat = watch
-prefer = /root/workspace-mount
+prefer = /mnt/workspace-mount
 fat = true
+perms = 0
+dontchmod = true
 
 ignore = Name .DS_Store
 ignore = Name .env

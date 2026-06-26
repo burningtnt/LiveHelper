@@ -11,8 +11,8 @@
 	],
 	"remoteUser": "node",
 	"workspaceFolder": "/workspace/",
-	"workspaceMount": "source=${localWorkspaceFolder}/src/frontend,target=/root/workspace-mount,type=bind",
-	"postAttachCommand": "sudo /usr/local/bin/start-container.sh",
+	"workspaceMount": "source=${localWorkspaceFolder}/src/frontend,target=/mnt/workspace-mount,type=bind",
+	"postAttachCommand": "/usr/local/bin/start-container.sh",
 	"customizations": {
 		"vscode": {
 			"extensions": [

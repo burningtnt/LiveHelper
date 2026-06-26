@@ -9,13 +9,13 @@ import findLastIndex from "lodash-es/findLastIndex";
 
 export function Header() {
   const locations = [
-    ["程序", "/"],
+    ["程序", "/program"],
     ["分镜头", "/clip"],
     ["调度器", "/manager"],
     ["看板", "/dashboard"],
   ];
 
-  const [value, setValue] = useState(0);
+  const [value, setValue] = useState(-1);
   const location = useLocation();
   useEffect(() => {
     const index = findLastIndex(locations, ([_, l]) => location.pathname.startsWith(l));
