@@ -21,6 +21,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -136,11 +137,10 @@ public final class ProgramScheduler {
                             int targetID = renderedClips.getOrDefault(cacheKey, -1);
                             if (targetID == -1) {
                                 List<InputValue> inputs = List.of(new InputValue.Number("progress", progress));
-
                                 steps.add(new RenderStep.Render(
-                                        clipPrograms.get(clipID).executeProgram(FrameRequest.class, inputs),
-                                        targetID = requestTargetID(currentTargetID)
-                                ));
+                                        clipPrograms.get(clipID).executeProgram(IRequest.class, inputs),
+                                        targetID = requestTargetID(currentTargetID))
+                                );
                                 renderedClips.put(cacheKey, targetID);
                             }
                             return targetID;

@@ -427,6 +427,19 @@ paths:
           description: 更新成功
         '404':
           description: 找不到对应 ID 标识的调度器
+  /v1/queue/entity:
+    post:
+      summary: 提交一个“至游戏内设置”请求，请求获得 entity 类型的参数
+      tags:
+        - 请求队列
+      responses:
+        '200':
+          description: 提交成功
+          content:
+            application/text:
+              schema:
+                type: string
+                description: 请求的 KEY
   /v1/queue/pose:
     post:
       summary: 提交一个“至游戏内设置”请求，请求获得 pose 类型的参数
@@ -603,6 +616,18 @@ components:
                 - pose
           required:
             - type
+    EntityInputDeclaration:
+      allOf:
+        - $ref: '#/components/schemas/BaseInputDeclaration'
+        - type: object
+          description: 一个游戏内实体 ID 类型的输入
+          properties:
+            type:
+              type: string
+              enum:
+                - entity
+          required:
+            - type
 
     InputValue:
       type: array
@@ -648,6 +673,10 @@ components:
                   - qw
               - type: number
                 description: f32 类型参数
+              - type: string
+                description: Entity 类型参数
+                format: uuid
+                pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
         required:
           - id
           - type

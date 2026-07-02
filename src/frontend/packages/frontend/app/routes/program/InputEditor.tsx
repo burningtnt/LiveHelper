@@ -82,6 +82,7 @@ export default function InputEditor({ inputs, onChange }: InputEditorProps) {
             >
               <MenuItem value="number">数字</MenuItem>
               <MenuItem value="pose">坐标与视角</MenuItem>
+              <MenuItem value="entity">实体</MenuItem>
             </TextField>
             <FormControlLabel
               control={

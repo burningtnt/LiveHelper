@@ -444,7 +444,7 @@ export default function Program() {
                       <code className="text-xs bg-muted px-1 rounded shrink-0">{input.id}</code>
                       <span className="flex-1 truncate min-w-0">{input.name || "(未命名)"}</span>
                       <Chip
-                        label={input.type === "number" ? "数字" : "坐标与视角"}
+                        label={input.type === "number" ? "数字" : input.type === "entity" ? "实体" : "坐标与视角"}
                         size="small"
                         variant="outlined"
                         className="shrink-0"

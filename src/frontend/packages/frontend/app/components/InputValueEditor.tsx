@@ -10,7 +10,7 @@ import IconButton from "@mui/material/IconButton";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import type { InputDeclaration, InputValue, PoseValue } from "~/api/schema";
-import { getQueueResult, submitPoseQueue } from "~/api/api";
+import { getQueueResult, submitEntityQueue, submitPoseQueue } from "~/api/api";
 import { parseError } from "~/utils";
 
 interface InputValueEditorProps {
@@ -40,6 +40,7 @@ function formatPose(v: PoseValue): string {
 const typeLabel: Record<string, string> = {
     number: "数字",
     pose: "坐标与视角",
+    entity: "实体",
 };
 
 export default function InputValueEditor({ declarations, values, onChange }: InputValueEditorProps) {
@@ -59,7 +60,7 @@ export default function InputValueEditor({ declarations, values, onChange }: Inp
         emit(vs);
     };
 
-    const addIndexedValue = (baseId: string, declType: "number" | "pose") => {
+    const addIndexedValue = (baseId: string, declType: "number" | "pose" | "entity") => {
         const indexed = findIndexedValues(values, baseId);
         const nextIndex = indexed.length;
         const newValue: InputValue = { id: `${baseId}.${nextIndex}`, type: declType, value: null };
@@ -105,14 +106,23 @@ export default function InputValueEditor({ declarations, values, onChange }: Inp
                                         placeholder={decl.description || "无描述信息"}
                                     />
                                 )
-                                : (
-                                    <PoseDisplay
-                                        value={values.find((v) => v.id === decl.id) ?? { id: decl.id, type: decl.type, value: null }}
-                                        onChange={updateValue}
-                                        label={sectionLabel}
-                                        placeholder={decl.description || "无描述信息"}
-                                    />
-                                )
+                                : decl.type === "entity"
+                                    ? (
+                                        <EntityDisplay
+                                            value={values.find((v) => v.id === decl.id) ?? { id: decl.id, type: decl.type, value: null }}
+                                            onChange={updateValue}
+                                            label={sectionLabel}
+                                            placeholder={decl.description || "无描述信息"}
+                                        />
+                                    )
+                                    : (
+                                        <PoseDisplay
+                                            value={values.find((v) => v.id === decl.id) ?? { id: decl.id, type: decl.type, value: null }}
+                                            onChange={updateValue}
+                                            label={sectionLabel}
+                                            placeholder={decl.description || "无描述信息"}
+                                        />
+                                    )
                         )}
 
                         {decl.multivalue && (
@@ -148,14 +158,23 @@ export default function InputValueEditor({ declarations, values, onChange }: Inp
                                                         placeholder={decl.description || "无描述信息"}
                                                     />
                                                 )
-                                                : (
-                                                    <PoseDisplay
-                                                        value={iv}
-                                                        onChange={updateValue}
-                                                        label={`${decl.name} #${idx}`}
-                                                        placeholder={decl.description || "无描述信息"}
-                                                    />
-                                                )}
+                                                : iv.type === "entity"
+                                                    ? (
+                                                        <EntityDisplay
+                                                            value={iv}
+                                                            onChange={updateValue}
+                                                            label={`${decl.name} #${idx}`}
+                                                            placeholder={decl.description || "无描述信息"}
+                                                        />
+                                                    )
+                                                    : (
+                                                        <PoseDisplay
+                                                            value={iv}
+                                                            onChange={updateValue}
+                                                            label={`${decl.name} #${idx}`}
+                                                            placeholder={decl.description || "无描述信息"}
+                                                        />
+                                                    )}
                                         </Box>
                                         <IconButton
                                             onClick={() => removeIndexedValue(decl.id, idx)}
@@ -245,6 +264,134 @@ function NumberInput({
                 }
             }}
         />
+    );
+}
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function EntityDisplay({
+    value,
+    onChange,
+    label: labelProp,
+    labelPrefix,
+    placeholder,
+}: {
+    value: InputValue;
+    onChange?: (v: InputValue) => void;
+    label?: string;
+    labelPrefix?: string;
+    placeholder?: string;
+}) {
+    const label = labelProp ?? labelPrefix ?? "实体 UUID";
+    const [raw, setRaw] = useState(typeof value.value === "string" ? value.value : "");
+    const [uuidError, setUuidError] = useState<string | null>(null);
+    const [polling, setPolling] = useState(false);
+    const pollingRef = useRef(false);
+    const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);   
+
+    useEffect(() => {
+        return () => {
+            pollingRef.current = false;
+            if (timerRef.current) {
+                clearInterval(timerRef.current);
+                timerRef.current = null;
+            }
+        };
+    }, []);
+
+    const stopPolling = () => {
+        pollingRef.current = false;
+        setPolling(false);
+        if (timerRef.current) {
+            clearInterval(timerRef.current);
+            timerRef.current = null;
+        }
+    };
+
+    const handleSetFromGame = async () => {
+        if (polling) return;
+        setPolling(true);
+        pollingRef.current = true;
+
+        try {
+            const key = await submitEntityQueue();
+            if (!pollingRef.current) return;
+
+            timerRef.current = setInterval(async () => {
+                if (!pollingRef.current) {
+                    stopPolling();
+                    return;
+                }
+                try {
+                    const result = await getQueueResult(key);
+                    if (!pollingRef.current) return;
+
+                    if (result.status === 200 && result.data) {
+                        const str = typeof result.data.value === "string" ? result.data.value : "";
+                        const updated: InputValue = {
+                            ...result.data,
+                            id: value.id,
+                        };
+                        setRaw(str);
+                        setUuidError(null);
+                        onChange?.(updated);
+                        stopPolling();
+                        toast.success("已从游戏内获取设置");
+                    } else if (result.status === 404) {
+                        stopPolling();
+                    }
+                } catch {
+                    if (pollingRef.current) {
+                        stopPolling();
+                    }
+                }
+            }, 500);
+        } catch (e) {
+            stopPolling();
+            if (pollingRef.current) {
+                toast.error(parseError(e));
+            }
+        }
+    };
+
+    const validateAndUpdate = (text: string) => {
+        setRaw(text);
+        if (text === "") {
+            setUuidError(null);
+            onChange?.({ ...value, value: null });
+        } else if (UUID_REGEX.test(text)) {
+            setUuidError(null);
+            onChange?.({ ...value, value: text });
+        } else {
+            setUuidError("请输入有效的实体 UUID");
+            if (typeof value.value !== "string" || !UUID_REGEX.test(value.value)) {
+                onChange?.({ ...value, value: null });
+            }
+        }
+    };
+
+    return (
+        <Box className="flex items-start gap-2">
+            <TextField
+                size="small"
+                label={label}
+                fullWidth
+                value={raw}
+                placeholder={placeholder ?? "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"}
+                error={!!uuidError}
+                helperText={uuidError || "UUID 格式：xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"}
+                onChange={(e) => validateAndUpdate(e.target.value)}
+            />
+            <Button
+                variant="outlined"
+                size="small"
+                onClick={handleSetFromGame}
+                disabled={polling}
+                className="shrink-0 whitespace-nowrap mt-1"
+            >
+                {polling ? "请求中…" : "至游戏内设置"}
+            </Button>
+        </Box>
     );
 }
 

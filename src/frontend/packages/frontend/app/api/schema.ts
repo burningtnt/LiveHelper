@@ -2,6 +2,7 @@ export type {
   BaseInputDeclaration,
   NumberInputDeclaration,
   PoseInputDeclaration,
+  EntityInputDeclaration,
   InputDeclaration,
   Program,
 } from "@livehelper/schema";
@@ -34,8 +35,8 @@ export interface PoseValue {
 
 export interface InputValue {
   id: string;
-  type: "number" | "pose";
-  value: number | PoseValue | null;
+  type: "number" | "pose" | "entity";
+  value: number | PoseValue | string | null;
 }
 
 export interface Clip {

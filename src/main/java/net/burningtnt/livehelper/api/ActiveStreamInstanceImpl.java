@@ -11,6 +11,7 @@ import net.minecraft.client.Camera;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.GameRenderer;
+import net.minecraft.gizmos.Gizmos;
 import net.minecraft.util.profiling.Profiler;
 import net.minecraft.util.profiling.ProfilerFiller;
 import net.minecraft.world.entity.Entity;
@@ -30,6 +31,7 @@ import java.lang.invoke.MethodType;
 import java.lang.invoke.VarHandle;
 import java.util.List;
 import java.util.Objects;
+import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -134,7 +136,7 @@ import java.util.concurrent.TimeUnit;
     private void executeSteps(boolean isOutOfMemoryRecovery, List<ActiveStream.RenderStep> steps) {
         for (int i = 0; i < steps.size(); i++) {
             switch (steps.get(i)) {
-                case ActiveStream.RenderStep.Render(ActiveStream.FrameRequest request, int target) -> {
+                case ActiveStream.RenderStep.Render(ActiveStream.IRequest request, int target) -> {
                     render(request, ensureTarget(target), isOutOfMemoryRecovery);
                 }
                 case ActiveStream.RenderStep.Mix(int left, int right, int target, float progress) -> {
@@ -144,7 +146,7 @@ import java.util.concurrent.TimeUnit;
                     renderer.mix(leftTarget.getColorTextureView(), rightTarget.getColorTextureView(), progress, targetTarget.getColorTextureView());
                 }
                 case ActiveStream.RenderStep.Display(int target) -> {
-                    SpoutRenderer.blitSend(sender, Objects.requireNonNull(ensureTarget(target).getColorTextureView()));
+                    SpoutRenderer.sendTexture(sender, Objects.requireNonNull(ensureTarget(target).getColorTextureView()));
 
                     if (i != steps.size() - 1) {
                         throw new IllegalArgumentException("RenderStep.Display must be the last node.");
@@ -170,7 +172,7 @@ import java.util.concurrent.TimeUnit;
         return target;
     }
 
-    private void render(ActiveStream.FrameRequest frame, MainTarget renderTarget, boolean isOutOfMemoryRecovery) {
+    private void render(ActiveStream.IRequest request, MainTarget renderTarget, boolean isOutOfMemoryRecovery) {
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.level == null || minecraft.player == null) {
             return;
@@ -180,11 +182,13 @@ import java.util.concurrent.TimeUnit;
         Camera previousCamera = minecraft.gameRenderer.mainCamera;
         boolean previousHideGui = minecraft.options.hideGui;
         try {
-            setupInternal(frame, renderTarget);
-            ActiveStreamImpl.runWith(
-                    this, frame,
-                    () -> renderInternal(renderTarget, isOutOfMemoryRecovery)
-            );
+            ActiveStream.IRequest.Frame frame = setupInternal(request, renderTarget);
+            if (frame != null) {
+                ActiveStreamImpl.runWith(
+                        this, frame,
+                        () -> renderInternal(renderTarget, isOutOfMemoryRecovery)
+                );
+            }
         } finally {
             minecraft.mainRenderTarget = previousRenderTarget;
             minecraft.gameRenderer.mainCamera = previousCamera;
@@ -192,15 +196,34 @@ import java.util.concurrent.TimeUnit;
         }
     }
 
-    private void setupInternal(ActiveStream.FrameRequest frame, MainTarget renderTarget) {
+    private ActiveStream.IRequest.Frame setupInternal(ActiveStream.IRequest request, MainTarget renderTarget) {
         Minecraft minecraft = Minecraft.getInstance();
         minecraft.mainRenderTarget = renderTarget;
         minecraft.gameRenderer.mainCamera = camera;
         minecraft.options.hideGui = true;
 
+        ActiveStream.IRequest.Frame frame;
+        switch (request) {
+            case ActiveStream.IRequest.Frame f -> {
+                frame = f;
+                camera.setEntity(Objects.requireNonNull(minecraft.player));
+            }
+            case ActiveStream.IRequest.Entity(UUID entityID) -> {
+                Entity entity = Objects.requireNonNull(minecraft.level).getEntity(entityID);
+                if (entity == null) {
+                    return null;
+                }
+
+                Vec3 eye = entity.getEyePosition();
+                Vector3f rotation = new Vector3f().set(entity.getXRot(), entity.getYRot(), 0);
+                Quaternionf q = AngleConvert.convert(rotation, new Quaternionf());
+                frame = new ActiveStream.IRequest.Frame(eye.x, eye.y, eye.z, q.x, q.y, q.z, q.w, 80);
+                camera.setEntity(entity);
+            }
+        }
+
         Vector3f angles = AngleConvert.convert(new Quaternionf(frame.qx(), frame.qy(), frame.qz(), frame.qw()), new Vector3f());
         camera.setLevel(minecraft.level);
-        camera.setEntity(Objects.requireNonNull(minecraft.player));
 
         Matrix4f projection = new Matrix4f();
         projection.perspective(
@@ -229,6 +252,8 @@ import java.util.concurrent.TimeUnit;
         } catch (Throwable e) {
             throw new RuntimeException(e);
         }
+
+        return frame;
     }
 
     private void renderInternal(MainTarget renderTarget, boolean isOutOfMemoryRecovery) {
@@ -240,14 +265,14 @@ import java.util.concurrent.TimeUnit;
         profiler.push("spout");
 
         profiler.push("update");
-        boolean resourcesLoaded = minecraft.isGameLoadFinished();
-        boolean shouldRenderLevel = resourcesLoaded && !isOutOfMemoryRecovery && minecraft.level != null;
-        if (shouldRenderLevel) {
+        if (minecraft.isGameLoadFinished() && !isOutOfMemoryRecovery && minecraft.level != null) {
             minecraft.levelRenderer.update(camera);
         }
         profiler.popPush("extract");
         gameRenderer.getGameRenderState().framerateLimit = config.fps();
-        gameRenderer.extract(deltaTracker, !isOutOfMemoryRecovery);
+        try (Gizmos.TemporaryCollection ignored = minecraft.levelRenderer.collectPerFrameGizmos()) {
+            gameRenderer.extract(deltaTracker, !isOutOfMemoryRecovery);
+        }
 
         profiler.popPush("gpuAsync");
         RenderSystem.executePendingTasks();

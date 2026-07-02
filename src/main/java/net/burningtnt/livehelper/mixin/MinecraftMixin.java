@@ -3,7 +3,7 @@ package net.burningtnt.livehelper.mixin;
 import com.llamalad7.mixinextras.injector.v2.WrapWithCondition;
 import net.burningtnt.livehelper.MainScheduler;
 import net.burningtnt.livehelper.api.ActiveStreamImpl;
-import net.burningtnt.livehelper.server.UIPoseRequest;
+import net.burningtnt.livehelper.server.UIOperationRequest;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.GameRenderer;
 import org.spongepowered.asm.mixin.Final;
@@ -66,7 +66,7 @@ public abstract class MinecraftMixin {
 
     @Inject(method = "pauseGame", at = @At("HEAD"), cancellable = true)
     private void beforePauseGame(boolean suppressPauseMenuIfWeReallyArePausing, CallbackInfo ci) {
-        if (UIPoseRequest.onEscape()) {
+        if (UIOperationRequest.onEscape()) {
             ci.cancel();
         }
     }

@@ -20,6 +20,7 @@ import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Objects;
+import java.util.UUID;
 
 /* package-private */ final class LinkedMachineImports {
     private LinkedMachineImports() {
@@ -130,7 +131,7 @@ import java.util.Objects;
                                     List.of(ValType.I32)
                             ),
                             (_, args) -> {
-                                return new long[]{machine.attachResource(new ActiveStream.FrameRequest(
+                                return new long[]{machine.attachResource(new ActiveStream.IRequest.Frame(
                                         Float.intBitsToFloat((int) args[0]),
                                         Float.intBitsToFloat((int) args[1]),
                                         Float.intBitsToFloat((int) args[2]),
@@ -140,6 +141,13 @@ import java.util.Objects;
                                         Float.intBitsToFloat((int) args[6]),
                                         80 // TODO: Enable developers to configure FOV
                                 ))};
+                            }
+                    ),
+                    new ImportFunction(
+                            MODULE_ID, "Technique.MakeEntity", FunctionType.of(List.of(ValType.I32, ValType.I32), List.of(ValType.I32)),
+                            (instance, args) -> {
+                                UUID uuid = UUID.fromString(instance.memory((int) args[1]).readCString((int) args[0], StandardCharsets.UTF_8));
+                                return new long[]{machine.attachResource(new ActiveStream.IRequest.Entity(uuid))};
                             }
                     )
             );

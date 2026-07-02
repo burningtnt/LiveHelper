@@ -178,6 +178,17 @@ export async function submitPoseQueue(): Promise<string> {
 }
 
 /**
+ * 提交一个「至游戏内设置」请求，请求获得 entity 类型的参数。
+ * 返回请求的 KEY，用于后续轮询。
+ */
+export async function submitEntityQueue(): Promise<string> {
+  const { data } = await apiClient.post("/queue/entity", undefined, {
+    responseType: "text",
+  });
+  return data;
+}
+
+/**
  * 获取所对 KEY 的请求结果。
  * - 200: 已有结果，返回 InputValue
  * - 202: 请求还未兑现，请继续轮询

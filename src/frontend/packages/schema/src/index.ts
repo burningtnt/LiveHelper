@@ -13,7 +13,11 @@ export interface PoseInputDeclaration extends BaseInputDeclaration {
   type: "pose";
 }
 
-export type InputDeclaration = NumberInputDeclaration | PoseInputDeclaration;
+export interface EntityInputDeclaration extends BaseInputDeclaration {
+  type: "entity";
+}
+
+export type InputDeclaration = NumberInputDeclaration | PoseInputDeclaration | EntityInputDeclaration;
 
 export interface Program {
   id: number;

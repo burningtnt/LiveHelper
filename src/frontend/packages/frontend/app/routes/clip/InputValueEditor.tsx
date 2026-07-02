@@ -59,7 +59,7 @@ export default function InputValueEditor({ declarations, values, onChange }: Inp
         emit(vs);
     };
 
-    const addIndexedValue = (baseId: string, declType: "number" | "pose") => {
+    const addIndexedValue = (baseId: string, declType: "number" | "pose" | "entity") => {
         const indexed = findIndexedValues(values, baseId);
         const nextIndex = indexed.length;
         const newValue: InputValue = { id: `${baseId}.${nextIndex}`, type: declType, value: null };

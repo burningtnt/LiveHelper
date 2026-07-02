@@ -20,9 +20,9 @@ public final class ActiveStreamImpl {
 
     public static final class ActiveInstance {
         private final ActiveStreamInstanceImpl instance;
-        private final ActiveStream.FrameRequest request;
+        private final ActiveStream.IRequest.Frame request;
 
-        private ActiveInstance(ActiveStreamInstanceImpl instance, ActiveStream.FrameRequest request) {
+        private ActiveInstance(ActiveStreamInstanceImpl instance, ActiveStream.IRequest.Frame request) {
             this.instance = instance;
             this.request = request;
         }
@@ -31,13 +31,13 @@ public final class ActiveStreamImpl {
             return instance.config();
         }
 
-        public ActiveStream.FrameRequest request() {
+        public ActiveStream.IRequest.Frame request() {
             return request;
         }
     }
 
     /* package-private */
-    static void runWith(ActiveStreamInstanceImpl instance, ActiveStream.FrameRequest request, Runnable runnable) {
+    static void runWith(ActiveStreamInstanceImpl instance, ActiveStream.IRequest.Frame request, Runnable runnable) {
         ScopedValue.where(CURRENT_INSTANCE, new ActiveInstance(instance, request)).run(runnable);
     }
 

@@ -50,7 +50,9 @@ export function validateAndNormalize(
                     const typeHint =
                         decl.type === "pose"
                             ? "坐标和视角，必须填写"
-                            : "数字";
+                            : decl.type === "entity"
+                                ? "实体 ID，必须填写"
+                                : "数字";
                     toast.warning(`${decl.name} 的输入类型为${typeHint}`);
                     return null;
                 }
@@ -70,7 +72,11 @@ export function validateAndNormalize(
             const match = raw.find((v) => v.id === decl.id);
             if (!match || match.value === null) {
                 const typeHint =
-                    decl.type === "pose" ? "坐标和视角，必须填写" : "数字";
+                    decl.type === "pose"
+                        ? "坐标和视角，必须填写"
+                        : decl.type === "entity"
+                            ? "实体 ID，必须填写"
+                            : "数字";
                 toast.warning(`${decl.name} 的输入类型为${typeHint}`);
                 return null;
             }

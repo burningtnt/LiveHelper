@@ -9,6 +9,14 @@ export function lhTechniqueMakeClip(pose: Pose): HClip {
   return __lhTechniqueMakeClip(pose.x, pose.y, pose.z, pose.qx, pose.qy, pose.qz, pose.qw);
 }
 
+@external("LH", "Technique.MakeEntity")
+declare function __lhTechniqueMakeEntity(pUUID: i32, pUUIDMP: i32): HClip;
+
+export function lhTechniqueMakeEntity(uuid: string): HClip {
+  const uuidBuffer = String.UTF8.encode(uuid, true);
+  return __lhTechniqueMakeEntity(changetype<i32>(uuidBuffer), 0);
+}
+
 export function lhTechniqueGetProgress(): f32 {
   return lhInputGetF32("progress");
 }

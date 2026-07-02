@@ -3,6 +3,7 @@ package net.burningtnt.livehelper.api;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
+import java.util.UUID;
 
 public interface ActiveStream {
     record Config(
@@ -10,11 +11,16 @@ public interface ActiveStream {
     ) {
     }
 
-    record FrameRequest(
-            double x, double y, double z,
-            float qx, float qy, float qz, float qw,
-            float fov
-    ) {
+    sealed interface IRequest {
+        record Frame(
+                double x, double y, double z,
+                float qx, float qy, float qz, float qw,
+                float fov
+        ) implements IRequest {
+        }
+
+        record Entity(UUID id) implements IRequest {
+        }
     }
 
     sealed interface RenderStep {
@@ -23,7 +29,7 @@ public interface ActiveStream {
         @interface Buffer {
         }
 
-        record Render(FrameRequest request, @Buffer int target) implements RenderStep {
+        record Render(IRequest request, @Buffer int target) implements RenderStep {
         }
 
         record Mix(@Buffer int left, @Buffer int right, @Buffer int target, float progress) implements RenderStep {

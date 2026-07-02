@@ -117,7 +117,7 @@ main(
 
 #### Technique.MakeClip(f32, f32, f32, f32, f32, f32, f32) -> i32(handle, clip)
 
-创建一个摄像机配置供 LiveHelper 渲染。
+在特定位置和朝向创建一个摄像机配置供 LiveHelper 渲染。
 
 ```
 Technique.MakeClip(
@@ -127,9 +127,19 @@ Technique.MakeClip(
     [IN] f32 rX,          // 机位朝向，以四元数呈现。
     [IN] f32 rY,
     [IN] f32 rZ,
-    [IN] f32 rW,
-    [IN] f32 fov,         // FOV
+    [IN] f32 rW
 ) -> i32(handle, clip)    // 摄像机配置，请在 main 中返回。
+```
+
+#### Technique.MakeEntity(f32, f32) -> i32(handle, clip)
+
+创建一个附着于实体上的摄像机配置供 LiveHelper 渲染。
+
+```
+Technique.MakeEntity(
+    [IN] i32 pName,      // 待查 Input 名称：指向 UTF8 编码的, null-terminated 字符串的指针；
+    [IN] i32 pMemoryPage // pName 对应的内存页；
+) -> i32(handle, clip)   // 摄像机配置，请在 main 中返回。
 ```
 
 ### 调度器 (Manager)

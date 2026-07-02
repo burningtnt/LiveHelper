@@ -38,7 +38,7 @@ public final class SpoutRenderer {
     private static long window;
     private static int width, height;
 
-    public static void blitSend(SpoutSender sender, GpuTextureView textureView) {
+    public static void sendTexture(SpoutSender sender, GpuTextureView textureView) {
         int w = textureView.getWidth(0), h = textureView.getHeight(0);
 
         if (!LiveHelper.ENABLE_MULTI_CONTEXT_WORKAROUND.get()) {

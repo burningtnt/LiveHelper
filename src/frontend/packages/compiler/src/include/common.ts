@@ -26,6 +26,11 @@ export function lhInputGetBuffer(name: string): ArrayBuffer {
   return buf;
 }
 
+export function lhInputGetString(name: string): string {
+  const buffer = lhInputGetBuffer(name);
+  return String.UTF8.decode(buffer);
+}
+
 export class Pose {
   public readonly x: f32;
   public readonly y: f32;

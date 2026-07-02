@@ -80,7 +80,7 @@ function parseSections(content: string): Map<string, string> {
 
 // ─── Runtime validation ────────────────────────────────────────
 
-const VALID_INPUT_TYPES = ["number", "pose"] as const;
+const VALID_INPUT_TYPES = ["number", "pose", "entity"] as const;
 
 function validateProgramLike(data: unknown): asserts data is ProgramLike {
   if (typeof data !== "object" || data === null) {
@@ -114,7 +114,7 @@ function validateProgramLike(data: unknown): asserts data is ProgramLike {
       throw new Error(`meta.inputs[${i}].multivalue must be a boolean`);
     }
     if (!VALID_INPUT_TYPES.includes(input.type as any)) {
-      throw new Error(`meta.inputs[${i}].type must be "number" or "pose"`);
+      throw new Error(`meta.inputs[${i}].type must be "number", "pose", or "entity"`);
     }
   }
 }

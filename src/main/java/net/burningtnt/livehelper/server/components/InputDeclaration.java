@@ -14,7 +14,8 @@ public record InputDeclaration(
     public enum Type {
         @SerializedName("number") NUMBER,
         @SerializedName("string") STRING,
-        @SerializedName("pose") POSE
+        @SerializedName("pose") POSE,
+        @SerializedName("entity") ENTITY
     }
 
     @Override

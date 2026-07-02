@@ -45,6 +45,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Objects;
+import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -398,16 +399,21 @@ public final class UIServer extends Jooby {
                 throw new StatusCodeException(StatusCode.NO_CONTENT);
             });
 
-            post("/queue/pose", _ -> UIPoseRequest.submit());
+            post("/queue/pose", _ -> UIOperationRequest.submit(UIOperationRequest.State.Ready.Pose.class));
+            post("/queue/entity", _ -> UIOperationRequest.submit(UIOperationRequest.State.Ready.Entity.class));
             get("/queue/{key}", ctx -> {
                 String key = Objects.requireNonNull(ctx.path("key").valueOrNull());
 
-                switch (UIPoseRequest.get(key)) {
-                    case UIPoseRequest.State.Pending _ -> throw new StatusCodeException(StatusCode.ACCEPTED);
-                    case UIPoseRequest.State.Nil _ -> throw new StatusCodeException(StatusCode.NOT_FOUND);
-                    case UIPoseRequest.State.Ready(_, InputValue.Pose value) -> {
-                        return value;
+                switch (UIOperationRequest.get(key)) {
+                    case UIOperationRequest.State.Pending _ -> throw new StatusCodeException(StatusCode.ACCEPTED);
+                    case UIOperationRequest.State.Nil _ -> throw new StatusCodeException(StatusCode.NOT_FOUND);
+                    case UIOperationRequest.State.Ready.Pose(_, InputValue.Pose.PoseInstance value) -> {
+                        return new InputValue.Pose(key, value);
                     }
+                    case UIOperationRequest.State.Ready.Entity(_, UUID uuid) -> {
+                        return new InputValue.Entity(key, uuid);
+                    }
+                    default -> throw new AssertionError();
                 }
             });
 

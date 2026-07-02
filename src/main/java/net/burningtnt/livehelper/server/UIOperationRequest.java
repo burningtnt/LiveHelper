@@ -10,6 +10,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.FormattedCharSequence;
+import net.minecraft.world.phys.EntityHitResult;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
@@ -30,32 +31,39 @@ import java.util.concurrent.atomic.AtomicReference;
 import static java.lang.Math.round;
 
 @EventBusSubscriber(Dist.CLIENT)
-public final class UIPoseRequest {
+public final class UIOperationRequest {
     public sealed interface State {
-        record Pending(long timestamp, String key) implements State {
-        }
-
         record Nil() implements State {
             public static final Nil INSTANCE = new Nil();
         }
 
-        record Ready(String key, InputValue.Pose value) implements State {
+        record Pending(long timestamp, String key, Class<? extends Ready> type) implements State {
+        }
+
+        sealed interface Ready extends State {
+            String key();
+
+            record Pose(String key, InputValue.Pose.PoseInstance value) implements Ready {
+            }
+
+            record Entity(String key, UUID entityID) implements Ready {
+            }
         }
     }
 
     private static final AtomicReference<State> V = new AtomicReference<>(State.Nil.INSTANCE);
 
-    public static String submit() {
+    public static String submit(Class<? extends State.Ready> type) {
         String key = UUID.randomUUID().toString();
-        V.set(new State.Pending(System.currentTimeMillis(), key));
+        V.set(new State.Pending(System.currentTimeMillis(), key, type));
         requestFocus();
         return key;
     }
 
-    public static State get(String key) {
+    public static <T extends State.Ready> State get(String key) {
         return switch (V.get()) {
             case State.Pending pending -> pending.key.equals(key) ? pending : State.Nil.INSTANCE;
-            case State.Ready ready -> ready.key.equals(key) ? ready : State.Nil.INSTANCE;
+            case State.Ready ready -> ready.key().equals(key) ? ready : State.Nil.INSTANCE;
             case State.Nil nil -> nil;
         };
     }
@@ -63,9 +71,7 @@ public final class UIPoseRequest {
     @SubscribeEvent
     private static void on(RegisterGuiLayersEvent event) {
         event.registerAboveAll(LiveHelper.id("ui_pose_request_layer"), (graphics, _) -> {
-            if (!(V.get() instanceof State.Pending(
-                    long timestamp, _
-            )) || System.currentTimeMillis() - timestamp >= TimeUnit.SECONDS.toMillis(60)) {
+            if (!(V.get() instanceof State.Pending p) || System.currentTimeMillis() - p.timestamp >= TimeUnit.SECONDS.toMillis(60)) {
                 return;
             }
 
@@ -91,13 +97,28 @@ public final class UIPoseRequest {
                 && System.currentTimeMillis() - pending.timestamp < TimeUnit.SECONDS.toMillis(60)
                 && minecraft.options.keySwapOffhand.consumeClick()
         ) {
-            Vec3 position = minecraft.player.getEyePosition();
-            Vector3f rotation = new Vector3f().set(minecraft.player.getXRot(), minecraft.player.getYRot(), 0);
-            Quaternionf q = AngleConvert.convert(rotation, new Quaternionf());
+            if (pending.type == State.Ready.Pose.class) {
+                Vec3 position = minecraft.player.getEyePosition();
+                Vector3f rotation = new Vector3f().set(minecraft.player.getXRot(), minecraft.player.getYRot(), 0);
+                Quaternionf q = AngleConvert.convert(rotation, new Quaternionf());
 
-            V.compareAndSet(pending, new State.Ready(pending.key, new InputValue.Pose(pending.key,
-                    new InputValue.Pose.PoseInstance((float) position.x, (float) position.y, (float) position.z, q.x, q.y, q.z, q.w)
-            )));
+                V.compareAndSet(pending, new State.Ready.Pose(
+                        pending.key,
+                        new InputValue.Pose.PoseInstance((float) position.x, (float) position.y, (float) position.z, q.x, q.y, q.z, q.w)
+                ));
+            } else if (pending.type == State.Ready.Entity.class) {
+                if (minecraft.hitResult == null) {
+                    V.compareAndSet(pending, State.Nil.INSTANCE);
+                } else if (minecraft.hitResult instanceof EntityHitResult result) {
+                    V.compareAndSet(pending, new State.Ready.Entity(
+                            pending.key,
+                            result.getEntity().getUUID()
+                    ));
+                }
+            } else {
+                throw new AssertionError();
+            }
+
             yieldFocus();
         }
     }

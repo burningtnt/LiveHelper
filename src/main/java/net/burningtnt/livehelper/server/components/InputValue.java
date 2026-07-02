@@ -6,8 +6,10 @@ import net.burningtnt.livehelper.util.gson.DispatchConfiguration;
 
 import java.io.DataOutput;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.Objects;
+import java.util.UUID;
 
 public sealed interface InputValue {
     DispatchConfiguration<InputValue, InputDeclaration.Type> DISPATCH_CONFIGURATION = new DispatchConfiguration<>(
@@ -15,7 +17,8 @@ public sealed interface InputValue {
             Map.of(
                     InputDeclaration.Type.NUMBER, TypeToken.get(Number.class),
                     InputDeclaration.Type.STRING, TypeToken.get(Chars.class),
-                    InputDeclaration.Type.POSE, TypeToken.get(Pose.class)
+                    InputDeclaration.Type.POSE, TypeToken.get(Pose.class),
+                    InputDeclaration.Type.ENTITY, TypeToken.get(Entity.class)
             )
     );
 
@@ -68,7 +71,8 @@ public sealed interface InputValue {
 
         @Override
         public void intoBuffer(DataOutput buffer) throws IOException {
-            buffer.writeUTF(value);
+            buffer.write(value.getBytes(StandardCharsets.UTF_8));
+            buffer.write(0);
         }
     }
 
@@ -117,6 +121,28 @@ public sealed interface InputValue {
             buffer.writeFloat(value.qy);
             buffer.writeFloat(value.qz);
             buffer.writeFloat(value.qw);
+        }
+    }
+
+    record Entity(
+            @SerializedName("id") String id,
+            @SerializedName("value") UUID uuid
+    ) implements BufferLike, Validation {
+        @Override
+        public InputDeclaration.Type type() {
+            return InputDeclaration.Type.ENTITY;
+        }
+
+        @Override
+        public void validate() {
+            Objects.requireNonNull(id, "id");
+            Objects.requireNonNull(uuid, "uuid");
+        }
+
+        @Override
+        public void intoBuffer(DataOutput buffer) throws IOException {
+            buffer.write(uuid.toString().getBytes(StandardCharsets.UTF_8));
+            buffer.write(0);
         }
     }
 }
