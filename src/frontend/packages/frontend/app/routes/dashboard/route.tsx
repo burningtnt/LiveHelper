@@ -66,7 +66,7 @@ function buildWidget(
   if (node.type === "text") {
     return (
       <Box className="relative flex size-full items-center justify-center overflow-auto p-2 group">
-        {node.content ? <Markdown>{node.content}</Markdown> : null}
+        {node.content ? <Markdown className="w-fit">{node.content}</Markdown> : null}
         <Box className="absolute right-1 top-1 hidden gap-0.5 group-hover:flex">
           <IconButton size="small" onClick={(e) => { e.stopPropagation(); onEdit(node.id); }}>
             <EditIcon fontSize="small" />

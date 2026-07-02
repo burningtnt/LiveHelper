@@ -48,7 +48,7 @@ function renderNode(
     root.render(
       <AppTheme>
         <Box className="flex size-full items-center justify-center overflow-auto p-2">
-          {node.content ? <Markdown>{node.content}</Markdown> : null}
+          {node.content ? <Markdown className="w-fit">{node.content}</Markdown> : null}
         </Box>
       </AppTheme>,
     );
